@@ -1,5 +1,0 @@
-cd index.htmlのフォルダ
-python -m http.server 8000
-
-webブラウザ
-http://localhost:8000
