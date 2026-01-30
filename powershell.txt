@@ -1,0 +1,24 @@
+正しい手順（PowerShell・確実版）
+① server.js を起動（まずこれだけ）
+node .\server.js
+
+
+成功すると👇こう出ます：
+
+place-resolver on http://localhost:8080
+
+
+👉 この状態のまま止めないでください
+（このウィンドウはサーバ専用）
+
+② 新しい PowerShell をもう1つ開く
+
+タブを増やす
+または
+
+新しい PowerShell ウィンドウを開く
+
+③ POSTテスト（これだけを実行）
+curl -Method POST http://localhost:8080/resolve-place `
+  -ContentType "application/json" `
+  -Body '{"place":"東京ドーム"}'

@@ -1,0 +1,14 @@
+{
+  "name": "polyarch",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
+  }
+}

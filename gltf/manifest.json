@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "apartment",
+      "label": "アパート",
+      "file": "apartment.gltf",
+      "scale": 0.2,
+      "tags": ["アパート", "集合住宅", "住宅"]
+    },
+    {
+      "id": "mid_size_apartment",
+      "label": "中規模集合住宅",
+      "file": "mid_size_apartment.gltf",
+      "scale": 0.2,
+      "tags": ["マンション", "集合住宅", "中層"]
+    },
+    {
+      "id": "high_rise_residence",
+      "label": "高層レジデンス",
+      "file": "high_rise_residence.gltf",
+      "scale": 0.2,
+      "tags": ["高層", "住宅", "タワー"]
+    },
+    {
+      "id": "modern_house",
+      "label": "モダン住宅",
+      "file": "modern_house.gltf",
+      "scale": 0.2,
+      "tags": ["住宅", "戸建て", "モダン"]
+    },
+    {
+      "id": "modern_3story_house",
+      "label": "3階建て住宅",
+      "file": "modern_3story_house.gltf",
+      "scale": 0.2,
+      "tags": ["住宅", "3階建て", "戸建て"]
+    },
+    {
+      "id": "japanese_house",
+      "label": "日本家屋",
+      "file": "japanese_house.gltf",
+      "scale": 0.2,
+      "tags": ["日本家屋", "和風", "住宅"]
+    },
+    {
+      "id": "general_hospital",
+      "label": "病院",
+      "file": "general_hospital.gltf",
+      "scale": 0.2,
+      "tags": ["病院", "医療", "公共施設"]
+    },
+    {
+      "id": "grand_mall",
+      "label": "大型ショッピングモール",
+      "file": "grand_mall.gltf",
+      "scale": 0.2,
+      "tags": ["モール", "商業施設", "ショッピング"]
+    },
+    {
+      "id": "grand_mall_model",
+      "label": "大型モール（詳細）",
+      "file": "grand_mall_model.glb",
+      "scale": 0.2,
+      "tilt": 90,
+      "tags": ["モール", "商業施設", "詳細"]
+    },
+    {
+      "id": "grand_urban_tower",
+      "label": "都市型高層タワー",
+      "file": "grand_urban_tower_50f.gltf",
+      "scale": 0.2,
+      "tags": ["タワー", "高層", "都市"]
+    },
+    {
+      "id": "detailed_colosseum",
+      "label": "コロッセオ",
+      "file": "detailed_colosseum.gltf",
+      "scale": 0.2,
+      "tags": ["遺跡", "世界遺産", "闘技場"]
+    },
+    {
+      "id": "sky_palace",
+      "label": "天空の宮殿",
+      "file": "sky_palace.gltf",
+      "scale": 0.2,
+      "tags": ["宮殿", "ファンタジー", "空"]
+    },
+    {
+      "id": "wizard_tower",
+      "label": "魔法使いの塔",
+      "file": "wizard_tower.gltf",
+      "scale": 0.2,
+      "tags": ["塔", "魔法", "ファンタジー"]
+    }
+  ]
+}

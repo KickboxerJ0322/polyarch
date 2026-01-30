@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>3D Polygon Drawer (Photorealistic 3D Maps) - MVP</title>
+
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; }
+    .app { height: 100%; display: grid; grid-template-columns: 360px 1fr; }
+    @media (max-width: 900px) { .app { grid-template-columns: 1fr; grid-template-rows: 340px 1fr; } }
+
+    .panel {
+      padding: 12px;
+      border-right: 1px solid #ddd;
+      overflow: auto;
+      background: #fafafa;
+    }
+    @media (max-width: 900px) { .panel { border-right: none; border-bottom: 1px solid #ddd; } }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+    button {
+      padding: 10px 12px; border: 1px solid #ccc; background: #fff; border-radius: 10px;
+      cursor: pointer;
+    }
+    button.primary { border-color: #333; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .field { margin: 10px 0; }
+    .field label { display: block; font-size: 12px; color: #444; margin-bottom: 6px; }
+    input[type="range"] { width: 100%; }
+    input[type="color"] { width: 100%; height: 40px; padding: 0; border: none; background: transparent; }
+    textarea { width: 100%; min-height: 140px; resize: vertical; border-radius: 10px; border: 1px solid #ccc; padding: 8px; }
+    .hint { font-size: 12px; color: #555; line-height: 1.5; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .status { padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid #ddd; }
+    .mapWrap { position: relative; }
+    gmp-map-3d { width: 100%; height: 100%; display: block; }
+  </style>
+
+  <!-- Maps JS API (v=beta) + maps3d -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=REMOVED&v=beta&libraries=maps3d"
+    defer
+  ></script>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="panel">
+      <h2 style="margin:0 0 8px;">3D Polygon Drawer</h2>
+      <div class="hint">
+        - クリック：頂点追加（地面の緯度経度/高度）<br/>
+        - ダブルクリック：確定（ポリゴン化）<br/>
+        - Undo：1点戻す / Clear：作図リセット
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <button id="btnUndo" disabled>Undo</button>
+        <button id="btnClear" disabled>Clear</button>
+        <button id="btnFinish" class="primary" disabled>Finish</button>
+        <button id="btnAddCenter">Add Center</button>
+      </div>
+
+      <div class="field">
+        <label>Fill Color</label>
+        <input id="fillColor" type="color" value="#00aaff" />
+      </div>
+
+      <div class="field">
+        <label>Opacity（塗りの透明度）: <span id="opacityLabel" class="mono"></span></label>
+        <input id="opacity" type="range" min="0" max="1" step="0.05" value="0.35" />
+      </div>
+
+      <div class="field">
+        <label>Stroke Color</label>
+        <input id="strokeColor" type="color" value="#003344" />
+      </div>
+
+      <div class="field">
+        <label>Stroke Width: <span id="strokeWidthLabel" class="mono"></span> px</label>
+        <input id="strokeWidth" type="range" min="1" max="12" step="1" value="3" />
+      </div>
+
+      <div class="field">
+        <label>Extrude（押し出し）: <span id="extrudeLabel" class="mono"></span></label>
+        <div class="row">
+          <button id="btnExtrudeToggle">OFF</button>
+        </div>
+        <label>Height（m）: <span id="heightLabel" class="mono"></span></label>
+        <input id="height" type="range" min="0" max="300" step="5" value="60" />
+        <div class="hint">※ Extrude ON のとき、各頂点の altitude を height にして押し出します。</div>
+      </div>
+
+      <div class="field">
+        <label>Export / Import（JSON）</label>
+        <div class="row">
+          <button id="btnExport">Export</button>
+          <button id="btnImport">Import</button>
+          <button id="btnCopy">Copy</button>
+        </div>
+        <textarea id="json" class="mono" placeholder='{"path":[{"lat":...,"lng":...,"altitude":...}], "style": {...}}'></textarea>
+      </div>
+
+      <div class="status mono" id="status">Ready</div>
+      <div class="hint" style="margin-top:10px;">
+        コツ：まず 3点以上クリックしてから Finish。<br/>
+        ハッカソン用には、ここに Firestore 保存や Gemini 指示で「ポリゴン提案」などを足すと映えます。
+      </div>
+    </aside>
+
+    <main class="mapWrap">
+      <!-- Photorealistic 3D Map -->
+      <gmp-map-3d id="map3d" mode="hybrid"></gmp-map-3d>
+
+    </main>
+  </div>
+
+  <script>
+    // --- util ---
+    const $ = (id) => document.getElementById(id);
+
+    function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+    // #RRGGBB + opacity -> rgba(r,g,b,a)
+    function hexToRgba(hex, a) {
+      const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+      if (!m) return `rgba(0,170,255,${a})`;
+      const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    function setStatus(msg) { $("status").textContent = msg; }
+
+    // --- state ---
+    let vertices = [];         // raw clicked positions (lat,lng,altitude from click)
+    let previewLine = null;    // Polyline3DElement
+    let finalPolygons = [];    // created Polygon3DElement(s)
+    let extrudeOn = false;
+
+    // --- init after Maps loads ---
+    window.addEventListener("load", async () => {
+    try {
+      if (!window.google || !google.maps) {
+        setStatus("Maps JS API が読み込めませんでした。APIキー/ネットワークを確認してください。");
+        return;
+      }
+
+      // load maps3d library
+      const { Polyline3DElement, Polygon3DElement, AltitudeMode } = await google.maps.importLibrary("maps3d");
+
+      // map element
+      // map element（★upgrade完了を待ってから触る）
+      await customElements.whenDefined("gmp-map-3d");
+      const map3d = $("map3d");
+
+      // ラベルOFF（POIクリックを減らす）
+      map3d.defaultLabelsDisabled = true;
+
+      // まず普通に操作できる状態に
+      map3d.gestureHandling = "greedy";
+      map3d.mode = "hybrid";
+
+      // ★レインボーブリッジに固定（altitudeも入れると安定）
+      map3d.center = { lat: 35.6367, lng: 139.8753, altitude: 300 }; // 少し高めに
+      map3d.range = 1500;
+      map3d.tilt = 65;
+      map3d.heading = 35;
+
+      // preview line (editing)
+      previewLine = new Polyline3DElement({
+        strokeColor: "#00aaff",
+        strokeWidth: 4,
+        drawsOccludedSegments: true,
+        altitudeMode: AltitudeMode.CLAMP_TO_GROUND,
+        path: [],
+      });
+      map3d.append(previewLine);
+
+      // UI initial labels
+      syncUiLabels();
+      syncButtons();
+
+      // Map click: add vertex
+      // Map3DElement fires `gmp-click` and LocationClickEvent has `.position` (lat/lng/altitude). :contentReference[oaicite:2]{index=2}
+      map3d.addEventListener("gmp-click", (ev) => {
+        const pos = ev?.position ?? ev?.detail?.position;
+        if (!pos) {
+          setStatus("clicked but no position");
+          return;
+        }
+        vertices.push({ lat: pos.lat, lng: pos.lng, altitude: (typeof pos.altitude === "number" ? pos.altitude : 0) });
+        updatePreview();
+        syncButtons();
+        setStatus(`Vertex #${vertices.length} added`);
+      });
+
+      // Double click to finish polygon
+      map3d.addEventListener("dblclick", (e) => {
+        if (e?.preventDefault) e.preventDefault();
+        finishPolygon();
+      });
+      map3d.addEventListener("gmp-dblclick", (e) => {
+        if (e?.preventDefault) e.preventDefault();
+        finishPolygon();
+      });
+
+      // Buttons
+      $("btnUndo").onclick = () => {
+        vertices.pop();
+        updatePreview();
+        syncButtons();
+        setStatus("Undo");
+      };
+
+      $("btnClear").onclick = () => {
+        vertices = [];
+        updatePreview();
+        syncButtons();
+        setStatus("Cleared");
+      };
+
+      $("btnFinish").onclick = () => finishPolygon();
+
+      $("btnAddCenter").onclick = () => {
+        console.log("btnAddCenter clicked");
+        setStatus("btnAddCenter clicked");
+        // Mapの現在中心を頂点として追加（クリック不要で確実）
+        const c = map3d.center;
+        if (!c || typeof c.lat !== "number" || typeof c.lng !== "number") {
+          setStatus("center が取得できませんでした");
+          return;
+        }
+
+        vertices.push({
+          lat: c.lat,
+          lng: c.lng,
+          altitude: (typeof c.altitude === "number" ? c.altitude : 0),
+        });
+
+        updatePreview();
+        syncButtons();
+        setStatus(`Center added (#${vertices.length}): ${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`);
+      };
+
+      $("btnExtrudeToggle").onclick = () => {
+        extrudeOn = !extrudeOn;
+        $("btnExtrudeToggle").textContent = extrudeOn ? "ON" : "OFF";
+        syncUiLabels();
+        // 既存の確定ポリゴンがあるならスタイルだけ反映
+        redrawFinalPolygons(Polygon3DElement, AltitudeMode);
+        updatePreview();
+      };
+
+      // Sliders & colors
+      ["fillColor", "opacity", "strokeColor", "strokeWidth", "height"].forEach((id) => {
+        $(id).addEventListener("input", () => {
+          syncUiLabels();
+          redrawFinalPolygons(Polygon3DElement, AltitudeMode);
+          updatePreview();
+        });
+      });
+
+      // Export / Import
+      $("btnExport").onclick = () => {
+        const payload = buildPayload();
+        $("json").value = JSON.stringify(payload, null, 2);
+        setStatus("Exported JSON");
+      };
+
+      $("btnImport").onclick = () => {
+        try {
+          const obj = JSON.parse($("json").value);
+          if (!obj || !Array.isArray(obj.path)) throw new Error("Invalid JSON: path[] が必要です。");
+          vertices = obj.path.map((v) => ({
+            lat: Number(v.lat),
+            lng: Number(v.lng),
+            altitude: Number(v.altitude ?? 0),
+          })).filter(v => Number.isFinite(v.lat) && Number.isFinite(v.lng));
+
+          // style apply
+          if (obj.style) applyStyleToUi(obj.style);
+
+          updatePreview();
+          syncButtons();
+          setStatus("Imported JSON into editor (vertices loaded)");
+        } catch (err) {
+          setStatus("Import failed: " + err.message);
+        }
+      };
+
+      $("btnCopy").onclick = async () => {
+        try {
+          await navigator.clipboard.writeText($("json").value);
+          setStatus("Copied to clipboard");
+        } catch {
+          setStatus("Copy failed (ブラウザ権限を確認)");
+        }
+      };
+
+      // --- functions ---
+      function syncUiLabels() {
+        $("opacityLabel").textContent = Number($("opacity").value).toFixed(2);
+        $("strokeWidthLabel").textContent = $("strokeWidth").value;
+        $("heightLabel").textContent = $("height").value;
+        $("extrudeLabel").textContent = extrudeOn ? "ON" : "OFF";
+        $("btnExtrudeToggle").textContent = extrudeOn ? "ON" : "OFF";
+      }
+
+      function syncButtons() {
+        const n = vertices.length;
+        $("btnUndo").disabled = n === 0;
+        $("btnClear").disabled = n === 0;
+        $("btnFinish").disabled = n < 3;
+      }
+
+      function withHeight(path) {
+        const h = Number($("height").value);
+        if (!extrudeOn) return path;
+        // Extrude ON の場合、全頂点の altitude を高さに統一
+        return path.map(v => ({ lat: v.lat, lng: v.lng, altitude: h }));
+      }
+
+      function updatePreview() {
+        const stroke = $("strokeColor").value;
+        const w = Number($("strokeWidth").value);
+        previewLine.strokeColor = stroke;
+        previewLine.strokeWidth = w;
+
+        // 編集中は地面に貼り付け（見やすさ優先）
+        previewLine.altitudeMode = AltitudeMode.CLAMP_TO_GROUND;
+        previewLine.path = vertices.map(v => ({ lat: v.lat, lng: v.lng })); // clamp-to-ground なので altitude 省略でOK
+
+        // もし頂点が少ない時は非表示っぽくしたい場合は path=[] にしてもOK
+      }
+
+      function buildPolygonOptions(path) {
+        const fill = hexToRgba($("fillColor").value, Number($("opacity").value));
+        const stroke = $("strokeColor").value;
+        const w = Number($("strokeWidth").value);
+
+        // Extrude するなら altitudeMode は RELATIVE_TO_GROUND か ABSOLUTE が必要 :contentReference[oaicite:3]{index=3}
+        const altitudeMode = extrudeOn ? AltitudeMode.RELATIVE_TO_GROUND : AltitudeMode.CLAMP_TO_GROUND;
+
+        return {
+          path,
+          fillColor: fill,
+          strokeColor: stroke,
+          strokeWidth: w,
+          drawsOccludedSegments: true,
+          geodesic: true,
+          altitudeMode,
+          extruded: extrudeOn,
+        };
+      }
+
+      function finishPolygon() {
+        if (vertices.length < 3) return;
+
+        // 確定ポリゴンを作る（複数作れる仕様）
+        const path = withHeight(vertices);
+        const poly = new Polygon3DElement(buildPolygonOptions(path));
+        map3d.append(poly);
+        finalPolygons.push(poly);
+
+        // エディタはリセット（好みで残してもOK）
+        vertices = [];
+        updatePreview();
+        syncButtons();
+        setStatus("Polygon created ✅");
+      }
+
+      function redrawFinalPolygons(Polygon3DElement, AltitudeMode) {
+        // 簡易：既存ポリゴンをそのままスタイル更新（path は保持）
+        for (const poly of finalPolygons) {
+          const currentPath = Array.from(poly.path || []);
+          const newPath = extrudeOn ? withHeight(currentPath.map(p => ({
+            lat: p.lat, lng: p.lng, altitude: (typeof p.altitude === "number" ? p.altitude : 0)
+          }))) : currentPath.map(p => ({ lat: p.lat, lng: p.lng })); // clamp なので altitude 省略可
+
+          const opts = buildPolygonOptions(newPath);
+          poly.fillColor = opts.fillColor;
+          poly.strokeColor = opts.strokeColor;
+          poly.strokeWidth = opts.strokeWidth;
+          poly.drawsOccludedSegments = opts.drawsOccludedSegments;
+          poly.geodesic = opts.geodesic;
+          poly.altitudeMode = opts.altitudeMode;
+          poly.extruded = opts.extruded;
+          poly.path = opts.path;
+        }
+      }
+
+      function buildPayload() {
+        return {
+          path: withHeight(vertices),
+          style: {
+            fillColor: $("fillColor").value,
+            opacity: Number($("opacity").value),
+            strokeColor: $("strokeColor").value,
+            strokeWidth: Number($("strokeWidth").value),
+            extrude: extrudeOn,
+            height: Number($("height").value),
+          },
+          meta: {
+            createdAt: new Date().toISOString(),
+            note: "3D Polygon Drawer MVP",
+          }
+        };
+      }
+
+      function applyStyleToUi(style) {
+        if (style.fillColor) $("fillColor").value = style.fillColor;
+        if (typeof style.opacity === "number") $("opacity").value = clamp(style.opacity, 0, 1);
+        if (style.strokeColor) $("strokeColor").value = style.strokeColor;
+        if (typeof style.strokeWidth === "number") $("strokeWidth").value = clamp(style.strokeWidth, 1, 12);
+        if (typeof style.height === "number") $("height").value = clamp(style.height, 0, 300);
+        if (typeof style.extrude === "boolean") extrudeOn = style.extrude;
+        syncUiLabels();
+      }
+
+      } catch (e) {
+    console.error(e);
+    setStatus("初期化エラー: " + (e?.message ?? e));
+    }
+    });
+  </script>
+</body>
+</html>

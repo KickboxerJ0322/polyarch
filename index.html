@@ -1,0 +1,1682 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PolyArch</title>
+
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; }
+    .app { height: 100%; display: grid; grid-template-columns: 380px 1fr; }
+    @media (max-width: 900px) { .app { grid-template-columns: 1fr; grid-template-rows: 360px 1fr; } }
+    *, *::before, *::after { box-sizing: border-box; }
+    .panel {
+      padding: 16px 14px;
+      background: linear-gradient(
+        180deg,
+        #f4f5f7 0%,
+        #eceef1 100%
+      );
+      border-right: 1px solid #d0d4da;
+      color: #1f2937; /* ダークグレー文字 */
+      box-shadow: 4px 0 18px rgba(0,0,0,0.08);
+      z-index: 10;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden; 
+    }
+    .panel h2 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-bottom: 12px;
+      color: #111827;
+    }
+
+    @media (max-width: 900px) { .panel { border-right: none; border-bottom: 1px solid #ddd; } }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; min-width: 0; }
+    button {
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #111827;
+      font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      transition: all 0.15s ease;
+    }
+    button:hover {
+      background: #f3f4f6;
+      transform: translateY(-1px);
+    }
+    button.primary {
+      background: linear-gradient(135deg, #4b5563, #1f2937);
+      color: #fff;
+      border: none;
+    }
+    button.primary:hover {
+      opacity: 0.9;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    textarea {
+      width: 100%;
+      max-width: 100%;
+      min-height: 20px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #111827;
+      font-size: 12px;
+      line-height: 0.8;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
+    }
+    textarea.mono {
+      background: #0f172a;       /* 濃いネイビー */
+      color: #e5e7eb;
+      border: none;
+      font-size: 12px;
+    }
+    textarea.mono::placeholder {
+      color: #64748b;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #374151;
+      font-size: 12px;
+    }
+    #templateInfo {
+      margin-top: 6px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: #dbeafe;
+      color: #1e40af;
+      font-size: 12px;
+    }
+    .app { height: 100vh; } /* 100%より安定 */
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin: 4px 0 12px;
+    }
+    .brandLogo{
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      object-fit: cover;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }
+    .brandTitle{
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.2;
+      display: flex;         /* 横並びにする */
+      align-items: baseline; /* 文字の底辺を揃える */
+      gap: 6px;
+    }
+    .brandSub{
+      font-size: 10px;
+      color: #6b7280;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+    /* 非表示にするためのクラス */
+    .hidden {
+      display: none !important;
+    }
+    gmp-map-3d { width: 100%; height: 100%; display: block; }
+  </style>
+
+  <!-- Maps JS API (v=beta) + maps3d -->
+  <!-- ※警告(loading=async)は性能面の推奨。動作上は無視してOK。必要なら後でasyncロードに変えられます -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=REMOVED&v=beta&libraries=maps3d"
+    defer
+  ></script>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="panel">
+      <div class="brand">
+        <img class="brandLogo" src="./PolyArch_main.png" alt="logo">
+        <div class="brandTitle">
+          PolyArch<span class="brandSub">v1.0</span>
+        </div>
+      </div>
+      <div class="row">
+        <button id="btnGenerate" class="primary">生成</button>
+        <button id="btnFly">移動</button>
+        <button id="btnUndo">戻す</button>
+        <button id="btnClear">クリア</button>
+        <button id="btnRotate">回転</button>
+      </div>
+      <div class="row">
+        <button hidden id="btnModel">モデル</button>
+        <select id="modelSelect"></select>
+        <div class="row" style="align-items:center;">
+          <!-- <label class="mono" for="modelSelect" style="min-width:72px;">Model</label>
+          <select id="modelSelect" style="flex:1; padding:10px; border-radius:10px; border:1px solid #ccc;">
+            <option value="">（manifest読込中…）</option>
+          </select> -->
+          <button id="btnPlaceModel">配置</button>
+        </div>
+
+        <!-- <div class="hint" style="margin-top:6px;">
+          モデルを選択→「配置」で、prompt の場所（なければ現在地）に置きます。
+        </div> -->
+      </div>
+
+      <textarea id="prompt" class="mono" placeholder="例：台場公園 戸建て住宅"></textarea>
+
+      <!-- Chat UI -->
+      <div style="margin-top:16px;">
+        <h3 style="margin:6px 0;">AIチャット</h3>
+
+        <div id="chatLog"
+            style="height:250px; overflow:auto; border:1px solid #ccc;
+                    border-radius:10px; padding:8px; background:#fff;"
+            class="mono"></div>
+
+        <div class="row" style="margin-top:6px;">
+          <input id="chatInput"
+                placeholder="例：大阪城へ移動して"
+                style="flex:1; padding:8px; border-radius:8px; border:1px solid #ccc;">
+          <button id="btnChat">送信</button>
+        </div>
+      </div>
+      
+      <div class="row">
+        <button id="btnToggleDetails">詳細表示 ▼</button>
+      </div>
+
+      <div id="detailsArea" class="hidden">
+      <div class="row" style="margin-top:8px;">
+        <button id="btnExport">JSON出力</button>
+        <button id="btnIndividual">個別出力</button>
+      </div>
+
+      <textarea id="json" class="mono" placeholder="生成のログ(JSON)"></textarea>
+
+      <textarea id="apiRequest" class="mono" placeholder="Maps(描画)に最終的に渡した内容（編集して個別出力に使えます）"></textarea>
+
+      <div class="mono" id="templateInfo">使用テンプレ：なし</div>
+      <div class="status mono" id="status">Ready</div>
+
+      <div class="hint" style="margin-top:10px;">
+        個別出力：右のapiRequestを手修正 →「個別出力」→その通りに再描画（Undo対象=1グループ）
+      </div>
+      <div class="hint">
+        例：<br/>
+        <!-- ・「レインボーブリッジに赤い危険区域 高さ60m 半透明」<br/> -->
+        ・「東京駅に 城」<br/>
+        ・「渋谷に 緑の円 透明度0.2 高さ30」<br/>
+        ・「35.648393327786444, 139.77089018440887　戸建て住宅を建てる」<br/><!-- <br/>
+        対応：場所(辞書/AI) / テンプレタグ / 形 / 高さ / 透明度 / 色<br/>
+        ※テンプレがヒットすればテンプレ優先、なければAI解釈（localhost）へ。 -->
+      </div>
+       <div class="hint" style="margin-top:10px;">
+        戸建て住宅（詳細） / 低層集合住宅 / 中規模オフィスビル / タワー型ランドマーク / 皇居・大規模低層 / 空港 / 工場 / 病院 / 老人ホーム / 城 / 実験施設・基地 / ピラミッド遺跡群 / 万里の長城（区間） / 奈良の大仏・大仏殿 / 牛久大仏（巨大仏像） / シンデレラ城（ファンタジー） / 日本式の城（強化） / 架空の月 / 巨人像 / UFO
+      </div>
+      </div>        
+    </aside>
+    <main class="mapWrap">
+      <gmp-map-3d id="map3d" mode="hybrid"></gmp-map-3d>
+    </main>
+  </div>
+  <input
+    type="file"
+    id="modelFileInput"
+    accept=".gltf,.glb"
+    style="display:none"
+  />
+  <script>
+    // =========================
+    // 0) テンプレロード
+    // =========================
+    let TEMPLATES = null;
+    async function loadTemplates() {
+      const r = await fetch("./templates.json");
+      const j = await r.json();
+      TEMPLATES = j.archetypes || [];
+    }
+
+    const $ = (id) => document.getElementById(id);
+
+    const ROLE_COLOR = {
+      base: "#95A5A6",        // 土台・地盤
+      wall: "#ECF0F1",        // 壁
+      roof: "#34495E",        // 屋根
+      tower: "#3498DB",       // 塔
+      accent: "#E74C3C",      // 装飾
+      decoration: "#F1C40F",  // 装飾品
+      energy: "#1ABC9C",      // SF・魔法
+      body: "#F5CBA7",        // 人・生物
+      eye: "#E74C3C"          // 目・コア
+    };
+
+    function setStatus(s) {
+      const el = $("status");
+      if (el) el.textContent = s;
+      else console.log("[status]", s);
+    }
+
+    // 「Maps(描画)へ最終的に渡した内容」の保持（※Maps JS APIそのもののHTTPではなく、Map3Dにappendした内容の最終payload）
+    let lastRequest = null;
+
+    // =========================
+    // 1) ルールベース辞書（場所→座標）
+    // =========================
+    const PLACE_DB = [
+      { key: /東京駅/, name: "東京駅", lat: 35.681236, lng: 139.767125, heading: 30, tilt: 65, range: 1600 },
+      { key: /渋谷/, name: "渋谷", lat: 35.658034, lng: 139.701636, heading: 20, tilt: 65, range: 1500 },
+      { key: /レインボーブリッジ|虹の橋/, name: "レインボーブリッジ", lat: 35.6367, lng: 139.8753, heading: 35, tilt: 65, range: 1500 },
+      { key: /東京タワー/, name: "東京タワー", lat: 35.658581, lng: 139.745433, heading: 40, tilt: 65, range: 1400 },
+      { key: /ディズニー|舞浜/, name: "東京ディズニーリゾート", lat: 35.632896, lng: 139.880394, heading: 10, tilt: 65, range: 1700 },
+      { key: /東京ドーム/, name: "東京ドーム", lat: 35.705639, lng: 139.751891, heading: 20, tilt: 65, range: 1400 },
+      { key: /潮風公園/, name: "潮風公園", lat: 35.623218564002364, lng: 139.76899402886113, heading: 20, tilt: 65, range: 1500 },
+    ];
+
+    function detectPlace(text) {
+      for (const p of PLACE_DB) if (p.key.test(text)) return p;
+      return null;
+    }
+
+    // =========================
+    // 2) 図形生成ヘルパー
+    // =========================
+    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+    function clampInt(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+    function hexToRgba(hex, a) {
+      const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+      if (!m) return `rgba(0,102,255,${a})`;
+      const r = parseInt(m[1], 16);
+      const g = parseInt(m[2], 16);
+      const b = parseInt(m[3], 16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    function metersToLat(m){ return m / 111_320; }
+    function metersToLng(m, lat){ return m / (111_320 * Math.cos(lat * Math.PI/180)); }
+
+    function offsetCenter(center, dxMeters, dyMeters) {
+      return {
+        lat: center.lat + metersToLat(dyMeters),
+        lng: center.lng + metersToLng(dxMeters, center.lat),
+      };
+    }
+
+    function makeRect(center, meters=250) {
+      const dLat = metersToLat(meters);
+      const dLng = metersToLng(meters, center.lat);
+      return [
+        { lat: center.lat + dLat, lng: center.lng - dLng },
+        { lat: center.lat + dLat, lng: center.lng + dLng },
+        { lat: center.lat - dLat, lng: center.lng + dLng },
+        { lat: center.lat - dLat, lng: center.lng - dLng },
+      ];
+    }
+
+    function makeTriangle(center, meters=300) {
+      const dLat = metersToLat(meters);
+      const dLng = metersToLng(meters, center.lat);
+      return [
+        { lat: center.lat + dLat, lng: center.lng },
+        { lat: center.lat - dLat, lng: center.lng - dLng },
+        { lat: center.lat - dLat, lng: center.lng + dLng },
+      ];
+    }
+
+    function makeCircle(center, meters=260, n=18) {
+      const pts = [];
+      for (let i=0;i<n;i++){
+        const t = (Math.PI*2*i)/n;
+        const dx = Math.cos(t)*meters;
+        const dy = Math.sin(t)*meters;
+        const lat = center.lat + metersToLat(dy);
+        const lng = center.lng + metersToLng(dx, center.lat);
+        pts.push({ lat, lng });
+      }
+      return pts;
+    }
+
+    function makeNgon(center, meters = 260, sides = 6) {
+      const n = Math.max(3, Math.min(48, Math.round(sides)));
+      const pts = [];
+      for (let i = 0; i < n; i++) {
+        const t = (Math.PI * 2 * i) / n;
+        const dx = Math.cos(t) * meters;
+        const dy = Math.sin(t) * meters;
+        const lat = center.lat + metersToLat(dy);
+        const lng = center.lng + metersToLng(dx, center.lat);
+        pts.push({ lat, lng });
+      }
+      return pts;
+    }
+
+    function parseMetersFromText(text) {
+      const km = text.match(/([0-9]+(?:\.[0-9]+)?)\s*km/i);
+      if (km) return Math.round(parseFloat(km[1]) * 1000);
+
+      const m = text.match(/([0-9]+(?:\.[0-9]+)?)\s*m/i);
+      if (m) return Math.round(parseFloat(m[1]));
+
+      const han = text.match(/半径\s*([0-9]+(?:\.[0-9]+)?)\s*m?/);
+      if (han) return Math.round(parseFloat(han[1]));
+
+      return null;
+    }
+
+    function pickMeters(spec, originalText) {
+      if (Number.isFinite(spec?.radius) && spec.radius > 0) return Math.max(30, spec.radius);
+      if (Number.isFinite(spec?.meters) && spec.meters > 0) return Math.max(30, spec.meters);
+
+      const t = parseMetersFromText(originalText);
+      if (Number.isFinite(t)) return Math.max(30, t);
+
+      const size = String(spec?.size ?? "medium").toLowerCase();
+      if (size === "small") return 160;
+      if (size === "large") return 450;
+      return 260;
+    }
+
+    // =========================
+    // 3) maps3d
+    // =========================
+
+    // グループ管理（Undo/クリアの核）
+    let renderedGroups = [];
+    // let currentGroup = null; // 今回生成分
+
+    // 最後の生成ログ（JSON出力用）
+    let lastSpec = null;
+    let lastArchetype = null;
+
+    // ★グローバルで持つ（重要）
+    let map3d, Polygon3DElement, AltitudeMode, Model3DElement;
+
+    window.addEventListener("load", async () => {
+      try {
+        await loadTemplates();
+
+        // ★1) manifest読み込み → select反映
+        await loadModelManifest();
+        populateModelSelect();
+
+        // ★2) maps3d 読み込み（Model3DElementもここでセットされる）
+        ({ Polygon3DElement, AltitudeMode, Model3DElement } =
+          await google.maps.importLibrary("maps3d"));
+
+        await customElements.whenDefined("gmp-map-3d");
+        map3d = $("map3d");    
+    
+        // 初期位置
+        const p = PLACE_DB[6];
+        setCamera({
+          center: { lat: p.lat, lng: p.lng, altitude: 300 },
+          range: p.range,
+          tilt: p.tilt,
+          heading: p.heading,
+        });
+
+        // UIイベント
+        $("btnGenerate").onclick = generateFromText;
+        $("btnFly").onclick = flyToInputPlace;
+        $("btnUndo").onclick = undoLast;
+        $("btnClear").onclick = clearAll;
+        $("btnExport").onclick = exportLast;
+        $("btnRotate").onclick = rotateCameraOnce;
+        $("btnIndividual").onclick = exportIndividual;
+        $("btnModel").onclick = () => {
+          $("modelFileInput").click();
+        };
+        $("btnPlaceModel").onclick = () => {
+              const m = getSelectedModel();
+              placeModelFromManifest(m);
+            };
+        // 初期表示
+        lastRequest = { polygons: [], meta: {} };
+        updateRequestPlaceholder();
+        setStatus("Ready");
+
+        $("modelFileInput").addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          // ローカルファイルを一時URLに変換
+          const url = URL.createObjectURL(file);
+
+          // prompt に書かれた場所を使う（無ければ現在地）
+          let place = detectPlace($("prompt").value);
+          if (!place) {
+            place = {
+              lat: map3d.center.lat,
+              lng: map3d.center.lng,
+              altitude: 0
+            };
+          }
+
+          // 3Dモデルを作成
+          const model = new Model3DElement({
+            src: url,
+            position: {
+              lat: place.lat,
+              lng: place.lng,
+              altitude: 0
+            },
+            scale: 40,
+            orientation: { tilt: -90, heading: 0, roll: 0 },
+            altitudeMode: AltitudeMode.RELATIVE_TO_GROUND
+          });
+
+          map3d.append(model);
+
+          // Undo / Clear 用にグループ管理
+          if (!currentGroup) currentGroup = [];
+          currentGroup.push(model);
+
+          setStatus(`モデル配置：${file.name}`);
+        });
+
+        const btn = $("btnPlaceModel");
+        console.log("[manifest] btnPlaceModel:", btn);
+        if (btn) btn.onclick = placeSelectedModel;
+
+        setStatus("Ready");
+        
+      } catch (e) {
+        console.error(e);
+        setStatus("初期化エラー: " + e.message);
+      }
+    });
+
+    let MODEL_LIST = []; // manifestから読む
+
+    let MODEL_MANIFEST = null;
+
+    async function loadModelManifest() {
+      const url = "./gltf/manifest.json";
+      console.log("[manifest] fetching:", url);
+
+      const r = await fetch(url, { cache: "no-store" });
+      console.log("[manifest] status:", r.status);
+
+      if (!r.ok) throw new Error(`manifest load failed: ${r.status}`);
+
+      const j = await r.json();
+      console.log("[manifest] json keys:", Object.keys(j));
+
+      MODEL_MANIFEST = j;
+
+      // ★ 形チェック（modelsが無いパターンも拾う）
+      const models = Array.isArray(j.models) ? j.models : Array.isArray(j.items) ? j.items : [];
+      console.log("[manifest] models length:", models.length);
+
+      return MODEL_MANIFEST;
+    }
+
+    function populateModelSelect() {
+      const sel = $("modelSelect");
+      console.log("[manifest] populateModelSelect sel:", sel);
+
+      if (!sel) {
+        console.warn("[manifest] #modelSelect not found (id mismatch or not in DOM yet)");
+        return;
+      }
+
+      // manifest側のキー名ゆれ対応
+      const models = Array.isArray(MODEL_MANIFEST?.models)
+        ? MODEL_MANIFEST.models
+        : Array.isArray(MODEL_MANIFEST?.items)
+          ? MODEL_MANIFEST.items
+          : [];
+
+      sel.innerHTML = "";
+
+      if (!models.length) {
+        sel.innerHTML = `<option value="">（モデルがありません / manifest形式を確認）</option>`;
+        return;
+      }
+
+      sel.appendChild(new Option("モデルを選択…", ""));
+
+      for (const m of models) {
+        // 必須：id / file
+        const id = m.id ?? m.name ?? "";
+        const file = m.file ?? m.path ?? "";
+        const label = m.label ?? id;
+
+        if (!id || !file) continue;
+
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = label;
+        opt.dataset.file = file;              // ★あとで使う
+        opt.dataset.scale = m.scale ?? "";    // ★あとで使う
+        sel.appendChild(opt);
+      }
+
+      console.log("[manifest] select options:", sel.options.length);
+    }
+
+    function getSelectedModel() {
+      const id = $("modelSelect")?.value;
+      if (!id) return null;
+      const models = MODEL_MANIFEST?.models ?? [];
+      return models.find(x => x.id === id) ?? null;
+    }
+
+    // =========================
+    // 4) テンプレ検出（地名ノイズ除去で当たりやすく）
+    // =========================
+    function normalizeJP(s) {
+      return String(s ?? "")
+        .toLowerCase()
+        .normalize("NFKC")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function removePlaceWords(text) {
+      let s = normalizeJP(text);
+      for (const p of PLACE_DB) {
+        const name = normalizeJP(p.name);
+        if (name) s = s.replaceAll(name, " ");
+      }
+      // 助詞など軽く落とす
+      s = s.replace(/[にへでをはが]/g, " ");
+      return s.replace(/\s+/g, " ").trim();
+    }
+
+    function detectArchetypeFromText(text) {
+      if (!Array.isArray(TEMPLATES) || TEMPLATES.length === 0) return null;
+
+      const q = normalizeJP(text);
+      if (!q) return null;
+
+      const templateHint = /(建て|建設|作る|つくる|施設|建物|ビル|城|空港|工場|病院|学校|寺|神社|塔|タワー|基地|研究|ホテル|マンション|遺跡|神殿|宮殿|UFO|巨人|怪獣)/.test(q);
+
+      let best = null;
+      let bestScore = 0;
+
+      for (const tpl of TEMPLATES) {
+        const id = normalizeJP(tpl.id);
+        const label = normalizeJP(tpl.label);
+        const tags = (tpl.tags ?? []).map(normalizeJP);
+
+        let score = 0;
+
+        if (label && q.includes(label)) score += 120;
+        if (id && q.includes(id)) score += 90;
+
+        if (label) {
+          const words = label.split(/[^0-9a-z\u3040-\u30ff\u4e00-\u9faf]+/).filter(Boolean);
+          for (const w of words) if (w.length >= 2 && q.includes(w)) score += 20;
+        }
+
+        for (const tag of tags) {
+          if (!tag) continue;
+          if (q.includes(tag)) score += (tag.length >= 3) ? 35 : 15;
+          else if (tag.length >= 4) {
+            if (q.includes(tag.slice(0, Math.min(4, tag.length)))) score += 10;
+          }
+        }
+
+        const parts = Array.isArray(tpl.parts) ? tpl.parts : [];
+        if (parts.length >= 10) score += 12;
+        else if (parts.length >= 4) score += 5;
+
+        if (templateHint) score += 5;
+
+        if (score > bestScore) {
+          bestScore = score;
+          best = tpl;
+        }
+      }
+
+      return (bestScore >= 35) ? best : null;
+    }
+
+    function showTemplateInfo(archetype) {
+      const el = $("templateInfo");
+      if (!el) return;
+      el.textContent = archetype
+        ? `使用テンプレ：${archetype.label}（${archetype.id}）`
+        : "使用テンプレ：なし（AI生成）";
+    }
+
+    // テンプレ色を青に強制（要件）
+    // function forceTemplateBlue(tpl) {
+      // return {
+        // ...tpl,
+        // parts: (tpl.parts ?? []).map(p => ({
+          // ...p,
+          // color: "#0066ff",
+          // opacity: Number.isFinite(p.opacity) ? p.opacity : 0.85,
+        // }))
+      // };
+    // }
+
+    // =========================
+    // 5) カメラ
+    // =========================
+    function setCamera(placeOrCam) {
+      if (!map3d) return;
+
+      const cam = placeOrCam?.center ? placeOrCam : {
+        center: placeOrCam?.lat != null
+          ? { lat: placeOrCam.lat, lng: placeOrCam.lng, altitude: 300 }
+          : map3d.center,
+        range: placeOrCam?.range ?? 1500,
+        tilt: placeOrCam?.tilt ?? 65,
+        heading: placeOrCam?.heading ?? 30
+      };
+
+      map3d.center = cam.center;
+      map3d.range = cam.range;
+      map3d.tilt = cam.tilt;
+      map3d.heading = cam.heading;
+
+      // 反映保険
+      requestAnimationFrame(() => {
+        map3d.center = cam.center;
+        map3d.range = cam.range;
+        map3d.tilt = cam.tilt;
+        map3d.heading = cam.heading;
+      });
+    }
+
+    function refocusCamera(place) {
+      if (!place || !map3d) return;
+      requestAnimationFrame(() => {
+        setCamera({
+          center: { lat: place.lat, lng: place.lng, altitude: 300 },
+          range: place.range ?? 1500,
+          tilt: place.tilt ?? 65,
+          heading: place.heading ?? 30,
+        });
+      });
+    }
+
+    // =========================
+    // 6) 最終リクエスト内容（placeholder）管理
+    // =========================
+    function pushPolygonRecord(rec) {
+      if (!lastRequest) lastRequest = { polygons: [], meta: {} };
+      if (!Array.isArray(lastRequest.polygons)) lastRequest.polygons = [];
+      lastRequest.polygons.push(rec);
+    }
+
+    function updateRequestPlaceholder() {
+      if (!map3d) return;
+      if (!lastRequest) lastRequest = { polygons: [], meta: {} };
+
+      const payload = {
+        camera: {
+          center: map3d.center,
+          range: map3d.range,
+          tilt: map3d.tilt,
+          heading: map3d.heading
+        },
+        polygons: lastRequest.polygons ?? [],
+        meta: lastRequest.meta ?? {}
+      };
+
+      const el = $("apiRequest");
+      if (el) el.value = JSON.stringify(payload, null, 2);
+    }
+
+    // =========================
+    // 7) 描画（テンプレ）
+    // =========================
+    function renderArchetype(center, archetype) {
+      if (!archetype || !Array.isArray(archetype.parts)) return;
+      if (!currentGroup) currentGroup = []; // ★グローバルに積む
+
+      for (const part of archetype.parts) {
+        const c2 = offsetCenter(center, part.offset?.x ?? 0, part.offset?.y ?? 0);
+
+        const meters = part.meters ?? part.radius ?? 100;
+
+        let path2d;
+        if (part.shape === "circle") path2d = makeCircle(c2, meters);
+        else if (part.shape === "triangle") path2d = makeTriangle(c2, meters);
+        else if (part.shape === "ngon") path2d = makeNgon(c2, meters, part.sides ?? 6);
+        else path2d = makeRect(c2, meters);
+
+        const height = part.height ?? 30;
+        const color = resolvePartColor(part, archetype);
+        const opacity = part.opacity ?? 0.7; // ← 半透明をデフォルトに
+        const path3d = path2d.map(pt => ({ ...pt, altitude: height }));
+
+        const poly = new Polygon3DElement({
+          path: path3d,
+          fillColor: hexToRgba(color, opacity),
+          strokeColor: color,
+          strokeWidth: 3,
+          altitudeMode: AltitudeMode.RELATIVE_TO_GROUND,
+          extruded: true,
+          geodesic: true
+        });
+
+        map3d.append(poly);
+        currentGroup.push(poly);
+
+        // ★テンプレも「個別出力/手修正」できるように記録
+        pushPolygonRecord({
+          kind: "template",
+          shape: part.shape ?? "rect",
+          sides: part.sides ?? null,
+          center: { lat: c2.lat, lng: c2.lng },
+          meters,
+          radius: Number.isFinite(part.radius) ? part.radius : null,
+          height,
+          color,
+          opacity,
+          extruded: true,
+          altitudeMode: "RELATIVE_TO_GROUND",
+          role: part.role ?? null
+        });
+      }
+    }
+
+    // =========================
+    // 8) 生成（テンプレ優先 → なければAI）
+    // =========================
+    async function generateFromText() {
+      let place = null;
+
+      if (!map3d || !Polygon3DElement) {
+        setStatus("まだ初期化中です（API読み込み待ち）");
+        return;
+      }
+
+      const text = $("prompt").value.trim();
+      if (!text) {
+        setStatus("テキストを入力してください");
+        return;
+      }
+
+      // ★この生成のグループ開始
+      currentGroup = [];
+
+      // ★この生成のplaceholderを初期化
+      lastRequest = { polygons: [], meta: { prompt: text, mode: null, ts: new Date().toISOString() } };
+
+      try {
+        setStatus("場所を解決中…");
+        place = await resolvePlaceAgent(text);
+        if (!place) {
+          setStatus("場所を解決できませんでした");
+          return;
+        }
+
+        // ★カメラ移動（生成前に確実に）
+        setCamera({
+          center: { lat: place.lat, lng: place.lng, altitude: 300 },
+          range: place.range ?? 1500,
+          tilt: place.tilt ?? 65,
+          heading: place.heading ?? 30,
+        });
+
+        // ★テンプレ検出（地名ノイズ除去してから）
+        const qForTpl = removePlaceWords(text);
+        const archetype = detectArchetypeFromText(qForTpl);
+        lastArchetype = archetype;
+        showTemplateInfo(archetype);
+
+        // ---- A) テンプレが当たったらテンプレ描画
+        if (archetype) {
+          lastRequest.meta.mode = "template";
+          lastRequest.meta.archetypeId = archetype.id;
+          lastRequest.meta.archetypeLabel = archetype.label;
+
+          const center = { lat: place.lat, lng: place.lng };
+          // const tpl = forceTemplateBlue(archetype); //
+          renderArchetype(center, archetype);
+
+          // ログ
+          lastSpec = {
+            type: "archetype",
+            place,
+            archetypeId: archetype.id,
+            archetypeLabel: archetype.label,
+            polygonsCount: currentGroup.length
+          };
+          $("json").value = JSON.stringify(lastSpec, null, 2);
+
+          updateRequestPlaceholder();             // ★テンプレでもapiRequestに反映
+          setStatus(`生成完了（テンプレ: ${archetype.label} / ${currentGroup.length}ポリゴン）`);
+          return;
+        }
+
+        // ---- B) テンプレが無ければAI（localhost）
+        lastRequest.meta.mode = "ai";
+        setStatus("AIがポリゴン仕様を生成中…");
+        const r = await fetch("http://localhost:8080/interpret-polygon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({ text })
+        });
+        if (!r.ok) throw new Error("interpret-polygon failed");
+        const spec = await r.json();
+
+        const center = { lat: place.lat, lng: place.lng };
+
+        const baseMeters = pickMeters(spec, text);
+        const grid = spec.grid && Number.isFinite(spec.grid.rows) && Number.isFinite(spec.grid.cols)
+          ? { rows: Math.max(1, Math.min(10, spec.grid.rows)), cols: Math.max(1, Math.min(10, spec.grid.cols)) }
+          : null;
+
+        const zones = Array.isArray(spec.zones) ? spec.zones : null;
+        const step = Math.max(80, Math.round(baseMeters * 1.2));
+
+        function buildPolyAt(center2, zSpec) {
+          const meters = pickMeters(zSpec, text) ?? baseMeters;
+
+          let path2d;
+          if (zSpec.shape === "ngon") path2d = makeNgon(center2, meters, zSpec.sides ?? spec.sides ?? 6);
+          else if (zSpec.shape === "circle") path2d = makeCircle(center2, meters);
+          else if (zSpec.shape === "triangle") path2d = makeTriangle(center2, meters);
+          else path2d = makeRect(center2, meters);
+
+          const height = Number.isFinite(zSpec.height) ? zSpec.height : (spec.height ?? 50);
+          const opacity = Number.isFinite(zSpec.opacity) ? zSpec.opacity : (spec.opacity ?? 0.4);
+          const colorHex = zSpec.color ?? spec.color ?? "#ff0000";
+
+          const path3d = path2d.map(pt => ({ ...pt, altitude: height }));
+
+          const poly = new Polygon3DElement({
+            path: path3d,
+            fillColor: hexToRgba(colorHex, opacity),
+            strokeColor: colorHex,
+            strokeWidth: 3,
+            drawsOccludedSegments: true,
+            geodesic: true,
+            altitudeMode: AltitudeMode.RELATIVE_TO_GROUND,
+            extruded: true,
+          });
+
+          map3d.append(poly);
+          currentGroup.push(poly);
+
+          pushPolygonRecord({
+            kind: "ai",
+            shape: zSpec.shape ?? spec.shape ?? "rect",
+            sides: zSpec.sides ?? spec.sides ?? null,
+            center: { lat: center2.lat, lng: center2.lng },
+            meters,
+            radius: (Number.isFinite(zSpec.radius) && zSpec.radius > 0) ? zSpec.radius : null,
+            height,
+            color: colorHex,
+            opacity,
+            extruded: true,
+            altitudeMode: "RELATIVE_TO_GROUND"
+          });
+        }
+
+        if (zones && zones.length) {
+          for (const z of zones) {
+            const row = Number.isFinite(z.row) ? z.row : 0;
+            const col = Number.isFinite(z.col) ? z.col : 0;
+            const rows = grid?.rows ?? 1;
+            const cols = grid?.cols ?? 1;
+            const dx = (col - (cols - 1) / 2) * step;
+            const dy = (row - (rows - 1) / 2) * step;
+            const c2 = offsetCenter(center, dx, dy);
+            buildPolyAt(c2, { ...spec, ...z });
+          }
+        } else if (grid) {
+          for (let r = 0; r < grid.rows; r++) {
+            for (let c = 0; c < grid.cols; c++) {
+              const dx = (c - (grid.cols - 1) / 2) * step;
+              const dy = (r - (grid.rows - 1) / 2) * step;
+              const c2 = offsetCenter(center, dx, dy);
+              buildPolyAt(c2, spec);
+            }
+          }
+        } else {
+          buildPolyAt(center, spec);
+        }
+
+        lastSpec = { prompt: text, place, spec, polygonsCount: currentGroup.length };
+        $("json").value = JSON.stringify(lastSpec, null, 2);
+
+        setStatus(`生成完了（AI / ${currentGroup.length}ポリゴン）`);
+      } catch (e) {
+        console.error(e);
+        setStatus("生成エラー: " + (e?.message ?? e));
+      } finally {
+        if (place) refocusCamera(place);
+
+        // ★Undo対象へ積む（グループ）
+        if (currentGroup && currentGroup.length) renderedGroups.push(currentGroup);
+
+        updateRequestPlaceholder();
+
+        // 作成中は解放（誤操作防止）
+        currentGroup = null;
+      }
+    }
+
+    // =========================
+    // 9) 個別出力（apiRequestのJSONをそのまま描画）
+    // =========================
+    function exportIndividual() {
+      if (!map3d || !Polygon3DElement) {
+        setStatus("マップ未初期化");
+        return;
+      }
+
+      // ★個別出力も1グループ扱い
+      currentGroup = [];
+      try {
+        const obj = JSON.parse($("apiRequest").value);
+
+        // 1) カメラ遷移
+        if (obj.camera) setCamera(obj.camera);
+
+        // 2) polygons を描画
+        if (!Array.isArray(obj.polygons) || obj.polygons.length === 0) {
+          setStatus("polygons が空です（apiRequest を確認）");
+          return;
+        }
+
+        // この個別出力分をlastRequestとして保存し直す（編集後がそのまま残る）
+        lastRequest = {
+          polygons: obj.polygons,
+          meta: obj.meta ?? { mode: "individual" }
+        };
+
+        for (const p of obj.polygons) {
+          const center = p.center;
+          if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lng)) continue;
+
+          const meters = Number.isFinite(p.meters) && p.meters > 0 ? p.meters : 260;
+          const radius = Number.isFinite(p.radius) && p.radius > 0 ? p.radius : null;
+
+          const shape = p.shape ?? "rect";
+          const sides = Number.isFinite(p.sides) ? p.sides : 6;
+
+          const height = Number.isFinite(p.height) ? p.height : 50;
+          const opacity = Number.isFinite(p.opacity) ? p.opacity : 0.4;
+          const colorHex = p.color ?? "#ff0000";
+
+          let path2d;
+          if (shape === "circle") path2d = makeCircle(center, radius ?? meters);
+          else if (shape === "triangle") path2d = makeTriangle(center, meters);
+          else if (shape === "ngon") path2d = makeNgon(center, meters, sides);
+          else path2d = makeRect(center, meters);
+
+          const path3d = path2d.map(pt => ({ ...pt, altitude: height }));
+
+          const poly = new Polygon3DElement({
+            path: path3d,
+            fillColor: hexToRgba(colorHex, opacity),
+            strokeColor: colorHex,
+            strokeWidth: 3,
+            drawsOccludedSegments: true,
+            geodesic: true,
+            altitudeMode: AltitudeMode.RELATIVE_TO_GROUND,
+            extruded: true,
+          });
+
+          map3d.append(poly);
+          currentGroup.push(poly);
+        }
+
+        setStatus(`個別出力：${currentGroup.length}ポリゴンを描画しました`);
+
+      } catch (e) {
+        console.error(e);
+        setStatus("個別出力エラー: " + (e?.message ?? e));
+      } finally {
+        if (currentGroup && currentGroup.length) renderedGroups.push(currentGroup);
+        updateRequestPlaceholder();
+        currentGroup = null;
+      }
+    }
+
+    // =========================
+    // 10) Undo / Clear / JSON出力
+    // =========================
+    function undoLast() {
+      // ポリゴンのUndo
+      if (renderedGroups.length) {
+        const group = renderedGroups.pop();
+        for (const poly of group) poly.remove();
+        setStatus(`Undo（ポリゴン ${group.length}）`);
+        return;
+      }
+
+      // モデルのUndo
+      if (renderedModelGroups.length) {
+        const group = renderedModelGroups.pop();
+        for (const m of group) m.remove();
+        setStatus(`Undo（モデル ${group.length}）`);
+        return;
+      }
+
+      setStatus("Undoできる生成がありません");
+    }
+
+    function clearAll() {
+      for (const group of renderedGroups) for (const poly of group) poly.remove();
+      renderedGroups = [];
+
+      for (const group of renderedModelGroups) for (const m of group) m.remove();
+      renderedModelGroups = [];
+
+      lastSpec = null;
+      lastArchetype = null;
+      lastRequest = null;
+
+      $("json").value = "";
+      $("apiRequest").value = "";
+
+      setStatus("クリアしました");
+    }
+
+    function exportLast() {
+      if (!lastSpec) {
+        setStatus("まだ生成されていません");
+        return;
+      }
+      $("json").value = JSON.stringify(lastSpec, null, 2);
+      setStatus("JSONを出力しました");
+    }
+
+    // =========================
+    // 11) 場所解決（辞書→AI）
+    // =========================
+    async function resolvePlaceAgent(placeText) {
+      const known = detectPlace(placeText);
+      if (known) return known;
+
+      // 辞書に無ければ server.js に問い合わせ（Gemini等）
+      setStatus("AIが場所を解決中…");
+      const r = await fetch("http://localhost:8080/resolve-place", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ place: placeText }),
+      });
+
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error("resolve-place failed: " + t);
+      }
+
+      const { lat, lng } = await r.json();
+      return { name: placeText, lat, lng, heading: 30, tilt: 65, range: 1500 };
+    }
+
+    // =========================
+    // 12) Fly（Google Earthっぽい滑らか移動）
+    // =========================
+    async function flyToInputPlace() {
+      const text = $("prompt").value.trim();
+      if (!text) {
+        setStatus("場所が入力されていません");
+        return;
+      }
+
+      try {
+        setStatus("Fly中…");
+        const place = await resolvePlaceAgent(text);
+        if (!place) {
+          setStatus("場所を解決できませんでした");
+          return;
+        }
+        await flyCameraTo(place);
+        setStatus(`Fly完了：${place.name}`);
+      } catch (e) {
+        console.error(e);
+        setStatus("Flyエラー: " + e.message);
+      }
+    }
+
+    async function flyCameraTo(place) {
+      const s = {
+        lat: map3d.center.lat,
+        lng: map3d.center.lng,
+        range: map3d.range ?? 300,
+        heading: map3d.heading ?? 0,
+        tilt: map3d.tilt ?? 65,
+      };
+
+      const e = {
+        lat: place.lat,
+        lng: place.lng,
+        range: place.range ?? 300,
+        heading: place.heading ?? 30,
+        tilt: place.tilt ?? 65,
+      };
+
+      const distKm = approxDistanceKm(s.lat, s.lng, e.lat, e.lng);
+      const cruiseRange = clampInt(Math.round(4000 + distKm * 900), 5000, 18000);
+
+      const upDur = clampInt(Math.round(500 + distKm * 30), 600, 1200);
+      const moveDur = clampInt(Math.round(900 + distKm * 80), 1200, 4200);
+      const downDur = clampInt(Math.round(600 + distKm * 25), 700, 1600);
+
+      await animateCamera2({
+        from: s,
+        to: { ...s, range: cruiseRange, tilt: 25 },
+        duration: upDur,
+      });
+
+      await animateCamera2({
+        from: { ...s, range: cruiseRange, tilt: 25 },
+        to: { ...e, range: cruiseRange, tilt: 25, heading: e.heading },
+        duration: moveDur,
+      });
+
+      await animateCamera2({
+        from: { ...e, range: cruiseRange, tilt: 25 },
+        to: e,
+        duration: downDur,
+      });
+    }
+
+    function animateCamera2({ from, to, duration }) {
+      const startTime = performance.now();
+      return new Promise(resolve => {
+        function step(now) {
+          const t = Math.min((now - startTime) / duration, 1);
+          const e = easeInOutCubic(t);
+
+          map3d.center = {
+            lat: lerp(from.lat, to.lat, e),
+            lng: lerp(from.lng, to.lng, e),
+            altitude: 300,
+          };
+          map3d.range = lerp(from.range, to.range, e);
+          map3d.heading = lerpAngle(from.heading, to.heading, e);
+          map3d.tilt = lerp(from.tilt, to.tilt, e);
+
+          if (t < 1) requestAnimationFrame(step);
+          else resolve();
+        }
+        requestAnimationFrame(step);
+      });
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function lerpAngle(a, b, t) {
+      let d = ((b - a + 540) % 360) - 180;
+      return a + d * t;
+    }
+
+    function approxDistanceKm(lat1, lng1, lat2, lng2) {
+      const R = 6371;
+      const toRad = x => x * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a =
+        Math.sin(dLat/2)**2 +
+        Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
+    // =========================
+    // 13) 回転
+    // =========================
+    let isRotating = false;
+
+    function rotateCameraOnce() {
+      if (!map3d || isRotating) return;
+
+      isRotating = true;
+      setStatus("カメラ回転中…");
+
+      const startHeading = map3d.heading ?? 0;
+      const duration = 4000;
+      const startTime = performance.now();
+
+      function step(now) {
+        const t = Math.min((now - startTime) / duration, 1);
+        const eased = easeInOut(t);
+
+        map3d.heading = startHeading + eased * 360;
+
+        if (t < 1) requestAnimationFrame(step);
+        else {
+          map3d.heading = (startHeading + 360) % 360;
+          isRotating = false;
+          setStatus("Ready");
+        }
+      }
+
+      requestAnimationFrame(step);
+    }
+
+    function easeInOut(t) {
+      return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+
+    function resolvePartColor(part, archetype) {
+      if (part.color) return part.color;
+      if (archetype?.palette && part.role && archetype.palette[part.role]) return archetype.palette[part.role];
+      if (part.role && ROLE_COLOR[part.role]) return ROLE_COLOR[part.role];
+      return "#6B7280";
+    }
+
+    function renderArchetype(center, archetype) {
+      if (!archetype || !Array.isArray(archetype.parts)) return;
+
+      const group = []; // グループUndo用
+
+      for (const part of archetype.parts) {
+        const c2 = offsetCenter(center, part.offset?.x ?? 0, part.offset?.y ?? 0);
+
+        const colorHex = resolvePartColor(part, archetype);
+        const opacity = Math.min(0.5, Number.isFinite(part.opacity) ? part.opacity : 0.30);
+
+        // ★中空モード
+        if (part.hollow?.topAlt != null && part.hollow?.bottomAlt != null) {
+          const meters = part.meters ?? part.radius ?? 120;
+
+          const { top, bottom } = makeHollowRectPrism(
+            c2,
+            meters,
+            part.hollow.topAlt,
+            part.hollow.bottomAlt
+          );
+
+          const polyEl = makeHollowPolygon3D({
+            outerPath: top,
+            innerPaths: [bottom],
+            fillColor: hexToRgba(colorHex, opacity),
+            strokeColor: colorHex
+          });
+
+          map3d.append(polyEl);
+          group.push(polyEl);
+          continue;
+        }
+
+        // ★通常（Polygon3DElement）
+        const meters = part.meters ?? part.radius ?? 100;
+        let path2d;
+        if (part.shape === "circle") path2d = makeCircle(c2, meters);
+        else if (part.shape === "triangle") path2d = makeTriangle(c2, meters);
+        else if (part.shape === "ngon") path2d = makeNgon(c2, meters, part.sides ?? 6);
+        else path2d = makeRect(c2, meters);
+
+        const height = part.height ?? 30;
+        const path3d = path2d.map(pt => ({ ...pt, altitude: height }));
+
+        const poly = new Polygon3DElement({
+          path: path3d,
+          fillColor: hexToRgba(colorHex, opacity),
+          strokeColor: colorHex,
+          strokeWidth: 3,
+          altitudeMode: AltitudeMode.RELATIVE_TO_GROUND,
+          extruded: true,
+          geodesic: true,
+        });
+
+        map3d.append(poly);
+        group.push(poly);
+      }
+
+      renderedGroups.push(group);
+    }
+
+    $("btnChat").onclick = sendChat;
+
+    async function sendChat() {
+      const input = $("chatInput");
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      appendChat("user", msg);
+      input.value = "";
+
+      try {
+        // state は "あれば" 渡す。なくても generate/fly できるようにする
+        let state = null;
+        if ($("apiRequest").value) {
+          const full = JSON.parse($("apiRequest").value);
+          state = { polygons: full.polygons ?? [] };
+        }
+
+        const r = await fetch("http://localhost:8080/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg, state })
+        });
+
+        if (!r.ok) throw new Error("chat failed");
+
+        const res = await r.json();
+
+        // ① チャット表示（1回だけ）
+        appendChat("ai", res.reply);
+
+        switch (res.action) {
+          case "generate":
+            $("prompt").value = res.prompt ?? msg;   // ★ここ超重要
+            await generateFromText();
+            break;
+
+          case "fly":
+            $("prompt").value = res.prompt ?? msg;   // ★ここ超重要
+            await flyToInputPlace();
+            break;
+
+          case "undo":
+            undoLast();
+            break;
+
+          case "clear":
+            clearAll();
+            break;
+
+          case "rotate":
+            rotateCameraOnce();
+            break;
+
+          case "open-model-picker":
+            $("modelFileInput").click();
+            break;
+
+          case "modify":
+            if (res.state) {
+              // apiRequest は full 形式なら polygons を差し替える。無ければそのまま
+              const full = JSON.parse($("apiRequest").value || "{}");
+              full.polygons = res.state.polygons ?? full.polygons ?? [];
+              $("apiRequest").value = JSON.stringify(full, null, 2);
+              exportIndividual();
+            }
+            break;
+        }
+      } catch (e) {
+        console.error(e);
+        appendChat("ai", "エラーが発生しました");
+      }
+    }
+
+    function appendChat(role, text) {
+      const log = $("chatLog");
+      const div = document.createElement("div");
+      div.style.marginBottom = "6px";
+      div.textContent = (role === "user" ? "👤 " : "🤖 ") + text;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function pickPartColor(archetype, part) {
+      // 1) json/テンプレ側で part.color があればそれを最優先
+      if (part.color) return part.color;
+
+      // 2) role に色を割り当てているならそれ
+      const role = String(part.role ?? "").toLowerCase();
+      if (ROLE_COLOR && ROLE_COLOR[role]) return ROLE_COLOR[role];
+
+      // 3) archetype 側で baseColor を持たせているならそれ（任意）
+      if (archetype?.baseColor) return archetype.baseColor;
+
+      // 4) 最後の保険
+      return "#0066ff";
+    }
+
+    function makeHollowPolygon3D({ outerPath, innerPaths, fillColor, strokeColor }) {
+      const el = document.createElement("gmp-polygon-3d");
+
+      // あなたの指定どおり
+      el.setAttribute("altitude-mode", "relative-to-ground");
+      el.setAttribute("extruded", "true");
+
+      // パス（outer=天面、inner=底面）
+      el.outerPath = outerPath;
+      el.innerPaths = innerPaths;
+
+      // 見た目
+      el.fillColor = fillColor;
+      el.strokeColor = strokeColor;
+      el.strokeWidth = 3;
+
+      return el;
+    }
+
+    function makeRect3DWithAltitude(center, meters, altitude) {
+      const pts = makeRect(center, meters);
+      return [...pts, pts[0]].map(p => ({ lat: p.lat, lng: p.lng, altitude }));
+    }
+
+    function makeHollowRectPrism(center, meters, topAlt, bottomAlt) {
+      const top = makeRect3DWithAltitude(center, meters, topAlt);
+      const bottom = makeRect3DWithAltitude(center, meters, bottomAlt);
+      return { top, bottom };
+    }
+
+    let renderedModelGroups = [];  // Undo/Clear用（モデルもグループで管理）
+    let currentGroup = null;       // 既に使ってるならそのまま
+
+    function getSelectedModel() {
+      const id = $("modelSelect")?.value;
+      return MODEL_LIST.find(m => m.id === id) ?? null;
+    }
+
+    async function placeModelFromUI(modelId = null, promptText = null) {
+      if (!map3d) return setStatus("マップ未初期化");
+      if (!Model3DElement) return setStatus("Model3DElement が利用できません（maps3d側の対応確認）");
+
+      // 1) 置き先（prompt欄 or 指定）
+      const text = (promptText ?? $("prompt").value).trim();
+      if (!text) return setStatus("場所が入力されていません");
+
+      // 2) 置くモデル（UI or 指定）
+      const model = modelId
+        ? (MODEL_LIST.find(m => m.id === modelId) ?? null)
+        : getSelectedModel();
+
+      if (!model) return setStatus("モデルが選択されていません（manifestを確認）");
+
+      setStatus("モデル設置中…");
+
+      // 3) 場所解決
+      const place = await resolvePlaceAgent(text);
+
+      // 4) カメラ移動（先に寄る）
+      await flyCameraTo(place).catch(() => {
+        // fly失敗しても設置は続ける
+        setCamera(place);
+      });
+
+      // 5) モデル生成（currentGroup に積む）
+      if (!currentGroup) currentGroup = [];
+      const group = []; // 今回のモデル群（1個でもグループ化してUndo対応）
+
+      const altitude = Number.isFinite(model.altitude) ? model.altitude : 0;
+      const heading = Number.isFinite(model.heading) ? model.heading : 0;
+      const scale = Number.isFinite(model.scale) ? model.scale : 30;
+
+      // ★ モデルの位置
+      const position = { lat: place.lat, lng: place.lng, altitude };
+
+      // ★ ここがModel3D配置（プロパティ名は環境で微妙に違う可能性があるのでtryで保険）
+      let el;
+      try {
+        el = new Model3DElement({
+          position,
+          src: model.src,     // "./gltf/xxx.glb"
+          scale,
+          heading
+        });
+      } catch (e) {
+        console.error(e);
+        return setStatus("モデル生成に失敗：Model3DElementの引数仕様を確認してください");
+      }
+
+      map3d.append(el);
+      group.push(el);
+
+      renderedModelGroups.push(group);
+
+      // apiRequest にも記録（手修正＆再出力に使える）
+      if (!lastRequest) lastRequest = { polygons: [], meta: {} };
+      lastRequest.models = Array.isArray(lastRequest.models) ? lastRequest.models : [];
+      lastRequest.models.push({
+        id: model.id,
+        label: model.label,
+        src: model.src,
+        position,
+        scale,
+        heading
+      });
+
+      updateRequestPlaceholder();
+      setStatus(`モデル設置完了：${model.label ?? model.id}`);
+    }
+
+    const toggleBtn = document.getElementById('btnToggleDetails');
+    const detailsArea = document.getElementById('detailsArea');
+
+    toggleBtn.addEventListener('click', () => {
+      const isHidden = detailsArea.classList.contains('hidden');
+      if (isHidden) {
+        detailsArea.classList.remove('hidden');
+        toggleBtn.textContent = '詳細を閉じる ▲';
+      } else {
+        detailsArea.classList.add('hidden');
+        toggleBtn.textContent = '詳細表示 ▼';
+      }
+    });
+
+    function getPlaceFromPromptOrCenter() {
+      const t = $("prompt")?.value?.trim() ?? "";
+      const p = detectPlace(t);
+      if (p) return p;
+      return { lat: map3d.center.lat, lng: map3d.center.lng, name: "center" };
+    }
+
+    function placeSelectedModel() {
+      const sel = $("modelSelect");
+      if (!sel) {
+        setStatus("modelSelect が見つかりません");
+        return;
+      }
+
+      const opt = sel.options[sel.selectedIndex];
+      const id = sel.value;
+      const file = opt?.dataset?.file;
+
+      console.log("[model] selected:", { id, file, Model3DElement });
+
+      if (!id || !file) {
+        setStatus("モデルが選択されていません");
+        return;
+      }
+      if (!Model3DElement) {
+        setStatus("Model3DElement が利用できません（maps3d対応を確認）");
+        return;
+      }
+
+      const place = getPlaceFromPromptOrCenter();
+
+      // ★URLを必ず相対パスで
+      const src = `./gltf/${file}`;
+
+      const scale = Number(opt.dataset.scale) || 3;
+
+      // ★見失い防止：一旦カメラを寄せる（rangeを小さく）
+      setCamera({
+        center: { lat: place.lat, lng: place.lng, altitude: 300 },
+        range: 1200,
+        tilt: 65,
+        heading: 30
+      });
+
+      // ★Undo用のグループを作る（必要なら）
+      currentGroup = [];
+      renderedGroups.push(currentGroup);
+
+      const model = new Model3DElement({
+        src,
+        position: { lat: place.lat, lng: place.lng, altitude: 0 },
+        scale,
+        orientation: { tilt: -90, heading: 0, roll: 0 },
+        altitudeMode: AltitudeMode.RELATIVE_TO_GROUND
+      });
+
+      map3d.append(model);
+      currentGroup.push(model);
+
+      setStatus(`モデル配置: ${id} (${file})`);
+    }
+
+    function ensureGroup() {
+      // 「生成」単位でUndoしたいなら、配置ごとにグループを作る
+      currentGroup = [];
+      renderedGroups.push(currentGroup);
+    }
+
+    function placeModelFromManifest(modelMeta) {
+      if (!modelMeta) {
+        setStatus("モデルが選択されていません");
+        return;
+      }
+      if (!map3d) return;
+
+      // maps3d のクラスを使う（importLibrary で取ってる前提）
+      const Model3DElementCtor =
+        (google.maps?.maps3d?.Model3DElement) || window.Model3DElement;
+
+      if (!Model3DElementCtor) {
+        setStatus("Model3DElement が利用できません（maps3dの対応を確認）");
+        return;
+      }
+
+      const place = getPlaceFromPromptOrCenter();
+
+      // URLは必ずHTTPで配信される相対パスにする
+      const src = `./gltf/${modelMeta.file}`;
+
+      // スケールは manifest 優先（なければ適当に）
+      const scale = Number.isFinite(modelMeta.scale) ? modelMeta.scale : 60;
+
+      // ここでUndoのグループを作る（モデル単発でもグループ化）
+      ensureGroup();
+
+      const model = new Model3DElementCtor({
+        src,
+        position: { lat: place.lat, lng: place.lng, altitude: 0 },
+        scale,
+        orientation: { tilt: -90, heading: 0, roll: 0 },
+        altitudeMode: AltitudeMode.RELATIVE_TO_GROUND
+      });
+
+      map3d.append(model);
+      currentGroup.push(model);
+
+      // カメラもその場所へ寄せる（必要ならFlyにしてもOK）
+      setCamera({
+        center: { lat: place.lat, lng: place.lng, altitude: 300 },
+        range: 1500,
+        tilt: 65,
+        heading: 30
+      });
+
+      setStatus(`モデル配置: ${modelMeta.label ?? modelMeta.id}`);
+    } 
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PolyArch – NL → 3D Map Builder</title>
+
+<style>
+html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif;}
+.app{display:grid;grid-template-columns:380px 1fr;height:100%}
+.panel{background:#f2f3f5;padding:12px;overflow:auto}
+.mapWrap{position:relative}
+gmp-map-3d{width:100%;height:100%}
+
+.row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+button{padding:8px 10px;border-radius:8px;border:1px solid #bbb;background:#fff;cursor:pointer}
+button.primary{border-color:#333;font-weight:600}
+textarea{width:100%;min-height:110px;border-radius:8px;padding:8px;border:1px solid #ccc}
+.mono{font-family:ui-monospace;font-size:12px}
+.status{background:#fff;border:1px solid #ccc;border-radius:8px;padding:6px;margin-top:6px}
+
+.chat{border:1px solid #ccc;border-radius:8px;padding:6px;background:#fff;height:200px;overflow:auto}
+.chat .user{color:#333;margin:4px 0}
+.chat .ai{color:#0057c7;margin:4px 0}
+
+dialog{border:none;border-radius:12px;padding:12px}
+.modelItem{display:flex;gap:8px;align-items:center;padding:6px;border-bottom:1px solid #eee;cursor:pointer}
+.modelItem:hover{background:#f0f4ff}
+</style>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&v=beta&libraries=maps3d" defer></script>
+</head>
+
+<body>
+<div class="app">
+<aside class="panel">
+  <h2>PolyArch</h2>
+
+  <div class="row">
+    <button id="btnGenerate" class="primary">生成</button>
+    <button id="btnModel">モデル</button>
+    <button id="btnFly">Fly</button>
+    <button id="btnUndo">Undo</button>
+    <button id="btnClear">Clear</button>
+    <button id="btnRotate">回転</button>
+  </div>
+
+  <textarea id="prompt" placeholder="例：東京駅に城 / 神田駅にUFO"></textarea>
+
+  <div class="row">
+    <button id="btnExport">JSON出力</button>
+  </div>
+
+  <textarea id="apiRequest" class="mono" placeholder="内部JSON"></textarea>
+
+  <h3>AIチャット</h3>
+  <div class="chat mono" id="chatLog"></div>
+  <div class="row">
+    <input id="chatInput" style="flex:1" placeholder="UFOモデル出して など">
+    <button id="btnChat">送信</button>
+  </div>
+
+  <div class="status mono" id="status">Ready</div>
+</aside>
+
+<main class="mapWrap">
+  <gmp-map-3d id="map3d" mode="hybrid"></gmp-map-3d>
+</main>
+</div>
+
+<!-- ===== モデル選択ダイアログ ===== -->
+<dialog id="modelDialog">
+  <h3>モデルを選択</h3>
+  <div id="modelList"></div>
+  <div class="row">
+    <button onclick="modelDialog.close()">閉じる</button>
+  </div>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+const setStatus = s => $("status").textContent = s;
+
+let map3d, Polygon3DElement, Model3DElement, AltitudeMode;
+let renderedGroups = [];
+let currentGroup = [];
+let MODEL_MANIFEST = null;
+
+/* ========= 初期化 ========= */
+window.addEventListener("load", async () => {
+  ({Polygon3DElement, Model3DElement, AltitudeMode} =
+    await google.maps.importLibrary("maps3d"));
+
+  map3d = $("map3d");
+  map3d.center = {lat:35.6812,lng:139.7671,altitude:300};
+  map3d.range = 1600;
+  map3d.tilt = 65;
+  map3d.heading = 30;
+
+  await loadModelManifest();
+
+  $("btnGenerate").onclick = generateFromText;
+  $("btnModel").onclick = () => openModelPicker([]);
+  $("btnFly").onclick = flyToInputPlace;
+  $("btnUndo").onclick = undoLast;
+  $("btnClear").onclick = clearAll;
+  $("btnRotate").onclick = rotateCameraOnce;
+  $("btnExport").onclick = exportJSON;
+  $("btnChat").onclick = sendChat;
+
+  setStatus("Ready");
+});
+
+/* ========= モデル ========= */
+async function loadModelManifest(){
+  const r = await fetch("./gltf/manifest.json");
+  MODEL_MANIFEST = await r.json();
+}
+
+function openModelPicker(filterTags){
+  const list = $("modelList");
+  list.innerHTML = "";
+
+  MODEL_MANIFEST.models
+    .filter(m => !filterTags.length || m.tags.some(t => filterTags.includes(t)))
+    .forEach(m=>{
+      const div=document.createElement("div");
+      div.className="modelItem";
+      div.textContent=m.label;
+      div.onclick=()=>{placeModel(m);modelDialog.close();}
+      list.appendChild(div);
+    });
+
+  modelDialog.showModal();
+}
+
+function placeModel(model){
+  const p = resolvePlaceLocal($("prompt").value) || map3d.center;
+
+  const el = new Model3DElement({
+    src: MODEL_MANIFEST.basePath + model.src,
+    position: {lat:p.lat,lng:p.lng,altitude:model.altitude||0},
+    scale: model.scale || 40,
+    heading: model.heading || 0,
+    altitudeMode: AltitudeMode.RELATIVE_TO_GROUND
+  });
+
+  map3d.append(el);
+  currentGroup.push(el);
+  renderedGroups.push(currentGroup);
+  currentGroup=[];
+  setStatus(`モデル配置: ${model.label}`);
+}
+
+/* ========= 生成 ========= */
+function generateFromText(){
+  setStatus("生成（簡易）");
+  // 今回はテンプレ/AI省略（既存ロジック接続前提）
+}
+
+/* ========= Fly ========= */
+async function flyToInputPlace(){
+  const p = resolvePlaceLocal($("prompt").value);
+  if(!p){setStatus("場所不明");return;}
+  map3d.center={lat:p.lat,lng:p.lng,altitude:300};
+}
+
+/* ========= Undo / Clear ========= */
+function undoLast(){
+  const g=renderedGroups.pop();
+  if(!g)return;
+  g.forEach(o=>o.remove());
+}
+function clearAll(){
+  renderedGroups.flat().forEach(o=>o.remove());
+  renderedGroups=[];
+}
+
+/* ========= 回転 ========= */
+function rotateCameraOnce(){
+  let start=map3d.heading;
+  let t0=performance.now();
+  function step(t){
+    let p=Math.min((t-t0)/3000,1);
+    map3d.heading=start+360*p;
+    if(p<1)requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ========= Chat ========= */
+async function sendChat(){
+  const msg=$("chatInput").value.trim();
+  if(!msg)return;
+  addChat("user",msg);
+  $("chatInput").value="";
+
+  const r=await fetch("http://localhost:8080/chat",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({message:msg,state:{}})
+  });
+
+  const j=await r.json();
+  addChat("ai",j.reply);
+
+  if(j.action==="open-model-picker"){
+    openModelPicker(j.filterTags||[]);
+  }
+  if(j.action==="fly") flyToInputPlace();
+  if(j.action==="rotate") rotateCameraOnce();
+  if(j.action==="clear") clearAll();
+  if(j.action==="undo") undoLast();
+  if(j.action==="generate"){
+    $("prompt").value=j.prompt||$("prompt").value;
+    generateFromText();
+  }
+}
+
+function addChat(role,text){
+  const d=document.createElement("div");
+  d.className=role;
+  d.textContent=(role==="user"?"👤 ":"🤖 ")+text;
+  $("chatLog").appendChild(d);
+  $("chatLog").scrollTop=99999;
+}
+
+/* ========= util ========= */
+function resolvePlaceLocal(text){
+  if(/東京駅/.test(text))return{lat:35.6812,lng:139.7671};
+  if(/神田/.test(text))return{lat:35.6918,lng:139.7709};
+  return null;
+}
+function exportJSON(){
+  $("apiRequest").value=JSON.stringify({groups:renderedGroups.length},null,2);
+}
+</script>
+</body>
+</html>
