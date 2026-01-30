@@ -6,16 +6,15 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const app = express();
-
 app.use(express.json());
 
 // __dirname相当を作る（ESM対応）
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ルート（polyarch/）を静的配信
-const ROOT_DIR = path.resolve(__dirname, "..");
-app.use(express.static(ROOT_DIR));
+const PUBLIC_DIR = path.resolve(__dirname, "../public");
+app.use(express.static(PUBLIC_DIR));
+
 
 // ★ 環境変数で入れる（ブラウザに出さない）
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
