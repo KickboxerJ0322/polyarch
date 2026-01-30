@@ -863,7 +863,7 @@
         // ---- B) テンプレが無ければAI（localhost）
         lastRequest.meta.mode = "ai";
         setStatus("AIがポリゴン仕様を生成中…");
-        const r = await fetch("http://localhost:8080/interpret-polygon", {
+        const r = await fetch("/interpret-polygon", {
           method: "POST",
           headers: { "Content-Type": "application/json; charset=utf-8" },
           body: JSON.stringify({ text })
@@ -1105,7 +1105,7 @@
 
       // 辞書に無ければ server.js に問い合わせ（Gemini等）
       setStatus("AIが場所を解決中…");
-      const r = await fetch("http://localhost:8080/resolve-place", {
+      const r = await fetch("/resolve-place", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({ place: placeText }),
@@ -1356,7 +1356,7 @@
           state = { polygons: full.polygons ?? [] };
         }
 
-        const r = await fetch("http://localhost:8080/chat", {
+        const r = await fetch("/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: msg, state })
