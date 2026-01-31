@@ -1,5 +1,4 @@
 import express from "express";
-import fetch from "node-fetch";
 
 // server/server.js（先頭のimport群に追加）
 import path from "path";

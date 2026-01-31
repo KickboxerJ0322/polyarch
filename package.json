@@ -2,13 +2,15 @@
   "name": "polyarch",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "node-fetch": "^3.3.2"
+    "cookie-parser": "^1.4.7",
+    "express": "^4.19.2"
   }
 }
