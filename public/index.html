@@ -1514,13 +1514,13 @@
         case "generate":
           if (res.prompt) document.getElementById("prompt").value = res.prompt;
           await generateFromText();
-          appendChat("ai", "生成しました。必要なら「もう少し北側に」「高さを抑えて」など調整指示をください。");
+          appendChat("ai", "生成しました。");
           break;
 
         case "fly":
           if (res.prompt) document.getElementById("prompt").value = res.prompt;
           await flyToInputPlace();
-          appendChat("ai", "移動しました。周辺の見え方（軸線・視界）も確認しましょう。");
+          appendChat("ai", "移動しました。");
           break;
 
         case "undo":
@@ -1530,12 +1530,12 @@
 
         case "clear":
           clearAll();
-          appendChat("ai", "クリアしました。必要なら用途・規模感から整理して作り直しましょう。");
+          appendChat("ai", "全てクリアしました。");
           break;
 
         case "rotate":
           rotateCameraOnce();
-          appendChat("ai", "回転しました。正面性（ファサードの見え方）を確認できます。");
+          appendChat("ai", "回転しました。");
           break;
 
         case "modify":
@@ -1544,7 +1544,7 @@
             full.polygons = res.state.polygons ?? full.polygons ?? [];
             document.getElementById("apiRequest").value = JSON.stringify(full, null, 2);
             exportIndividual();
-            appendChat("ai", "変更しました。外構や隣地との離隔も意識すると精度が上がります。");
+            appendChat("ai", "変更しました。");
           } else {
             appendChat("ai", "変更案が受け取れませんでした。どの要素をどう変えたいか教えてください。");
           }
