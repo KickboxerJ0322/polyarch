@@ -242,7 +242,7 @@ app.post("/chat", async (req, res) => {
 # 返すJSONスキーマ（厳守）
 {
   "reply": "日本語の短い返答",
-  "action": "generate" | "fly" | "undo" | "clear" | "rotate" | "modify" | "open-model-picker",
+  "action": "chat" | "generate" | "fly" | "undo" | "clear" | "rotate" | "modify" | "open-model-picker",
   "prompt": "generate/flyの時だけ必須。prompt欄に入れる自然文。例: 東京駅に 城",
   "state": { "polygons": [...] } // modify の時だけ。受け取ったstateをベースに必要箇所だけ更新した完全なstate
 }
@@ -264,6 +264,8 @@ app.post("/chat", async (req, res) => {
   - "reply": "モデルを選択してください。",
 - reply は日本語で短く
 - opacity は 0〜0.7
+- 雑談/質問/相談など「操作の指示が明確でない」場合は action="chat" を返す（※何も実行しない）
+- generate/fly/undo/clear/rotate/modify/open-model-picker は、ユーザーが明確に操作を要求したときだけ返す
 
 # ユーザー指示
 ${msg}

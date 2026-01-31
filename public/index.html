@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PolyArch</title>
+  <link rel="icon" href="/public/PolyArch_main.png" type="image/png">
+  <link rel="apple-touch-icon" href="/public/PolyArch_main.png">
 
   <style>
     html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; }
@@ -69,7 +71,7 @@
       background: #ffffff;
       color: #111827;
       font-size: 12px;
-      line-height: 0.8;
+      line-height: 1.35;
     }
     textarea:focus {
       outline: none;
@@ -132,6 +134,15 @@
     /* 非表示にするためのクラス */
     .hidden {
       display: none !important;
+    }
+    #modelSelect{
+      height: 38px;          /* buttonと揃える */
+      padding: 0 10px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      font-size: 14px;
+      line-height: 38px;
     }
     gmp-map-3d { width: 100%; height: 100%; display: block; }
   </style>
@@ -565,6 +576,33 @@
         opt.dataset.scale = m.scale ?? "";    // ★あとで使う
         sel.appendChild(opt);
       }
+
+      function modelCategory(m){
+        const tags = (m.tags ?? []).map(s => String(s));
+        const label = String(m.label ?? "");
+
+        // 非現実（ファンタジー系）
+        const unreal = tags.some(t => /ファンタジー|天空|魔法|宮殿|浮遊|遺跡/i.test(t)) || /天空|魔法|宮殿/.test(label);
+        if (unreal) return 2;
+
+        // 大きい建物
+        const large = tags.some(t => /高層|タワー|大型|モール|病院|都市/i.test(t)) || /高層|タワー|大型|都市/.test(label);
+        if (large) return 1;
+
+        // それ以外は小さめ（住宅・小規模）
+        return 0;
+      }
+
+      function jpKey(s){
+        return String(s ?? "").toLocaleLowerCase("ja-JP");
+      }
+
+      // ★ ここで並び替え
+      models.sort((a,b) => {
+        const ca = modelCategory(a), cb = modelCategory(b);
+        if (ca !== cb) return ca - cb;
+        return jpKey(a.label).localeCompare(jpKey(b.label), "ja");
+      });
 
       console.log("[manifest] select options:", sel.options.length);
     }
@@ -1366,44 +1404,75 @@
 
         const res = await r.json();
 
+        function actionLabel(action) {
+          const map = {
+            chat: "会話のみ（操作しない）",
+            generate: "生成（ポリゴン作成）",
+            fly: "移動（カメラ移動）",
+            undo: "戻す（直前の操作を取り消し）",
+            clear: "クリア（全削除）",
+            rotate: "回転（カメラ回転）",
+            modify: "変更（既存ポリゴンの調整）",
+            "open-model-picker": "モデル選択を開く",
+          };
+          return map[action] ?? action;
+        }
+
+        async function confirmAndRun(action, runner, extraText = "") {
+          // chat は何もしないので確認不要
+          if (action === "chat" || !action) return;
+
+          const msg = `AIが次の操作を実行しようとしています。\n\n【操作】${actionLabel(action)}\n${extraText}\n\n実行しますか？`;
+          const ok = window.confirm(msg);
+          if (!ok) {
+            appendChat("ai", "了解。操作は実行しません（会話だけ続けられます）。");
+            return;
+          }
+          await runner();
+        }
+
         // ① チャット表示（1回だけ）
         appendChat("ai", res.reply);
 
         switch (res.action) {
+          case "chat":
+            // 返答表示だけで終わり
+            break;
           case "generate":
             $("prompt").value = res.prompt ?? msg;   // ★ここ超重要
-            await generateFromText();
+            await confirmAndRun("generate", () => generateFromText(), `prompt: ${$("prompt").value}`);
             break;
 
           case "fly":
             $("prompt").value = res.prompt ?? msg;   // ★ここ超重要
-            await flyToInputPlace();
+            await confirmAndRun("fly", () => flyToInputPlace(), `prompt: ${$("prompt").value}`);
             break;
 
           case "undo":
-            undoLast();
+            await confirmAndRun("undo", () => undoLast());
             break;
 
           case "clear":
-            clearAll();
+            await confirmAndRun("clear", () => clearAll());
             break;
 
           case "rotate":
-            rotateCameraOnce();
+            await confirmAndRun("rotate", () => rotateCameraOnce());
             break;
 
           case "open-model-picker":
-            $("modelFileInput").click();
+            await confirmAndRun("open-model-picker", () => $("modelFileInput").click());
             break;
 
           case "modify":
-            if (res.state) {
-              // apiRequest は full 形式なら polygons を差し替える。無ければそのまま
-              const full = JSON.parse($("apiRequest").value || "{}");
-              full.polygons = res.state.polygons ?? full.polygons ?? [];
-              $("apiRequest").value = JSON.stringify(full, null, 2);
-              exportIndividual();
-            }
+            await confirmAndRun("modify", async () => {
+              if (res.state) {
+                const full = JSON.parse($("apiRequest").value || "{}");
+                full.polygons = res.state.polygons ?? full.polygons ?? [];
+                $("apiRequest").value = JSON.stringify(full, null, 2);
+                exportIndividual();
+              }
+            });
             break;
         }
       } catch (e) {
