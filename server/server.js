@@ -15,9 +15,34 @@ const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.resolve(__dirname, "../public");
 app.use(express.static(PUBLIC_DIR));
 
-
 // ★ 環境変数で入れる（ブラウザに出さない）
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+import cookieParser from "cookie-parser";
+import crypto from "crypto";
+
+app.use(cookieParser());
+
+// sessionId をcookieで付与
+function getSessionId(req, res) {
+  let sid = req.cookies?.polyarch_sid;
+  if (!sid) {
+    sid = crypto.randomUUID();
+    // 30日保持（任意）
+    res.cookie("polyarch_sid", sid, { httpOnly: true, sameSite: "lax", maxAge: 30 * 24 * 3600 * 1000 });
+  }
+  return sid;
+}
+
+// インメモリ会話ストア（Cloud Runはインスタンス変わると消える）
+const chatStore = new Map(); // sid -> [{role:"user"|"assistant", content:"..."}]
+
+// 10往復=20メッセージに丸める
+function clampHistory(arr) {
+  const MAX = 20; // 10往復
+  if (arr.length <= MAX) return arr;
+  return arr.slice(arr.length - MAX);
+}
 
 if (!GEMINI_API_KEY) {
   console.warn("GEMINI_API_KEY is not set. Set env var before starting.");
@@ -27,7 +52,7 @@ if (!GEMINI_API_KEY) {
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
@@ -228,66 +253,82 @@ app.post("/chat", async (req, res) => {
       return res.status(500).json({ error: "GEMINI_API_KEY is not set" });
     }
 
-    const { message, state } = req.body ?? {};
-    const msg = String(message ?? "").trim();
+    const sid = getSessionId(req, res);
+
+    const msg = String(req.body?.message ?? "").trim();
+    const state = req.body?.state ?? null;
+
     if (!msg) return res.status(400).json({ error: "message is required" });
 
-    // ★ フロントが期待する返却スキーマを強制
-    // - generate/fly は prompt を必須にする（prompt欄へ流し込むため）
-    // - modify のときだけ state を返す
-    const prompt = `
-あなたは「3DマップUI操作コマンド」を返すAIです。
-出力は **必ずJSONのみ**。説明文・コードブロック禁止。
+    // 会話履歴削除コマンド
+    if (msg.includes("会話履歴削除")) {
+      chatStore.delete(sid);
+      return res.json({
+        reply: "承知しました。会話履歴を削除しました。引き続き、建築・都市・配置計画の相談に対応します。",
+        action: "chat",
+        needs_confirm: false,
+        confirm_text: "",
+        prompt: "",
+        state: null
+      });
+    }
 
-# 返すJSONスキーマ（厳守）
+    // 履歴へ追加（user）
+    const history = chatStore.get(sid) ?? [];
+    history.push({ role: "user", content: msg });
+    chatStore.set(sid, clampHistory(history));
+
+    const SYSTEM = `
+あなたは建築コンサルタントです。ユーザーの要望を「建築計画・街区計画・景観・スケール感・導線・用途・周辺環境」に配慮して助言します。
+口調は丁寧で、専門用語は必要な時だけ短く説明し、提案は理由付きで簡潔に提示します。
+
+重要：
+- 雑談・質問・相談など「操作指示が明確でない」場合は action="chat" にする（実行提案しない）。
+- 生成/移動/戻す/クリア/回転/変更の操作は、ユーザーの意図が明確な時のみ提案する。
+- 操作を提案する場合でも、勝手に実行させないため needs_confirm=true を返し、confirm_text に「何をするか」を短く書く。
+- 返答は必ず次のJSONのみで返す（余計な文章を出さない）：
+
 {
-  "reply": "日本語の短い返答",
-  "action": "chat" | "generate" | "fly" | "undo" | "clear" | "rotate" | "modify" | "open-model-picker",
-  "prompt": "generate/flyの時だけ必須。prompt欄に入れる自然文。例: 東京駅に 城",
-  "state": { "polygons": [...] } // modify の時だけ。受け取ったstateをベースに必要箇所だけ更新した完全なstate
+  "reply": "ユーザー向けの回答（建築コンサルとして）",
+  "action": "chat | generate | fly | undo | clear | rotate | modify",
+  "needs_confirm": true,
+  "confirm_text": "実行確認文",
+  "prompt": "generate/fly用（不要なら空文字）",
+  "state": { "polygons": [] } または null
 }
-
-# 重要ルール
-- action が generate のとき:
-  - prompt は必須（ユーザー指示から「場所＋対象」を含む自然文を作る）
-  - state は返さない
-- action が fly のとき:
-  - prompt は必須（飛び先の場所が分かる自然文にする）
-  - state は返さない
-- undo/clear/rotate のとき:
-  - prompt は不要
-  - state は返さない
-- modify のとき:
-  - state は必須（polygons配列構造は維持、指定された変更のみ反映）
-  - 追加/削除は禁止（色・opacity・height・meters・center などの変更のみ）
-- open-model-picker のとき:
-  - "reply": "モデルを選択してください。",
-- reply は日本語で短く
-- opacity は 0〜0.7
-- 雑談/質問/相談など「操作の指示が明確でない」場合は action="chat" を返す（※何も実行しない）
-- generate/fly/undo/clear/rotate/modify/open-model-picker は、ユーザーが明確に操作を要求したときだけ返す
-
-# ユーザー指示
-${msg}
-
-# 現在state（modify用）
-${JSON.stringify(state ?? {}, null, 2)}
 `.trim();
 
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0,
-            responseMimeType: "application/json"
-          }
-        })
-      }
-    );
+    // Geminiに渡すテキストを組み立て（履歴20件まで）
+    const histText = (chatStore.get(sid) ?? [])
+      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .join("\n");
+
+    const prompt = `
+${SYSTEM}
+
+【現在の状態（参考）】
+${state ? JSON.stringify(state).slice(0, 4000) : "null"}
+
+【会話履歴（直近10往復）】
+${histText}
+
+【ユーザーの最新発話】
+${msg}
+`.trim();
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: "application/json"
+        }
+      })
+    });
 
     if (!r.ok) {
       const t = await r.text();
@@ -311,51 +352,38 @@ ${JSON.stringify(state ?? {}, null, 2)}
       return res.status(500).json({ error: "json parse failed", raw: text });
     }
 
-    // ===== ここから「壊れた返答の修復」 =====
-
-    const action = String(obj.action ?? "").trim();
-    const reply = String(obj.reply ?? "").trim() || "了解。";
-
-    const allowed = new Set(["generate", "fly", "undo", "clear", "rotate", "modify"]);
-
-    // action が無い/不正なら、簡易ルールで推定
-    let fixedAction = allowed.has(action) ? action : null;
-    if (!fixedAction) {
-      if (/回転/.test(msg)) fixedAction = "rotate";
-      else if (/undo|戻|取り消/.test(msg)) fixedAction = "undo";
-      else if (/消|クリア|全消/.test(msg)) fixedAction = "clear";
-      else if (/飛|移動|フライ|fly/i.test(msg)) fixedAction = "fly";
-      else if (/色|opacity|透明|高さ|大き|小さ/.test(msg)) fixedAction = "modify";
-      else fixedAction = "generate";
-    }
-
-    // generate/fly は prompt が無いとフロントが動かないので必ず埋める
-    let fixedPrompt = (obj.prompt != null) ? String(obj.prompt).trim() : "";
-
-    if ((fixedAction === "generate" || fixedAction === "fly") && !fixedPrompt) {
-      // 最低限「ユーザー入力をそのまま prompt」にする（これで動く）
-      fixedPrompt = msg;
-    }
-
-    // modify 以外は state を返さない（フロントが混乱しないように）
-    let fixedState = undefined;
-    if (fixedAction === "modify") {
-      fixedState = obj.state ?? state ?? { polygons: [] };
-      // 念のため polygons が配列でない場合の補正
-      if (!Array.isArray(fixedState.polygons)) fixedState.polygons = Array.isArray(state?.polygons) ? state.polygons : [];
-    }
-
-    // 最終レスポンス
+    // 最低限の整形（フロントが使いやすい形に）
     const out = {
-      reply,
-      action: fixedAction,
-      ...(fixedPrompt ? { prompt: fixedPrompt } : {}),
-      ...(fixedState ? { state: fixedState } : {})
+      reply: String(obj.reply ?? "").trim() || "承知しました。",
+      action: String(obj.action ?? "chat").trim(),
+      needs_confirm: obj.needs_confirm !== false, // 基本true（会話のみならfalseでもOK）
+      confirm_text: String(obj.confirm_text ?? "").trim(),
+      prompt: String(obj.prompt ?? "").trim(),
+      state: obj.state ?? null
     };
 
-    res.json(out);
+    // 雑談なら action=chat を強制（暴走抑制）
+    if (!["chat", "generate", "fly", "undo", "clear", "rotate", "modify"].includes(out.action)) {
+      out.action = "chat";
+      out.needs_confirm = false;
+    }
+
+    // action=chat の場合は確認不要
+    if (out.action === "chat") {
+      out.needs_confirm = false;
+      out.confirm_text = "";
+      out.prompt = "";
+      out.state = null;
+    }
+
+    // assistant reply を履歴へ追加
+    const h2 = chatStore.get(sid) ?? [];
+    h2.push({ role: "assistant", content: out.reply });
+    chatStore.set(sid, clampHistory(h2));
+
+    return res.json(out);
   } catch (e) {
-    res.status(500).json({ error: "server error", detail: e?.message ?? String(e) });
+    return res.status(500).json({ error: "server error", detail: e?.message ?? String(e) });
   }
 });
 

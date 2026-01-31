@@ -263,6 +263,8 @@
       TEMPLATES = j.archetypes || [];
     }
 
+    let pendingAction = null; // サーバが提案した操作を一時保持
+
     const $ = (id) => document.getElementById(id);
 
     const ROLE_COLOR = {
@@ -1385,14 +1387,35 @@
       const msg = input.value.trim();
       if (!msg) return;
 
+      // 確認待ちなら、ユーザー入力で即決できる（Geminiへ投げない）
+      if (pendingAction) {
+        const t = msg.trim();
+        if (t === "実行" || t === "OK" || t === "はい") {
+          const a = pendingAction;
+          pendingAction = null;
+          input.value = "";
+          appendChat("user", msg);
+          await runProposedAction(a);
+          return;
+        }
+        if (t === "キャンセル" || t === "やめて" || t === "いいえ") {
+          pendingAction = null;
+          input.value = "";
+          appendChat("user", msg);
+          appendChat("ai", "了解しました。今回は実行しません。");
+          return;
+        }
+      }
+
       appendChat("user", msg);
       input.value = "";
 
       try {
-        // state は "あれば" 渡す。なくても generate/fly できるようにする
+        // state は "あれば" 渡す
         let state = null;
-        if ($("apiRequest").value) {
-          const full = JSON.parse($("apiRequest").value);
+        const apiReq = $("apiRequest")?.value?.trim();
+        if (apiReq) {
+          const full = JSON.parse(apiReq);
           state = { polygons: full.polygons ?? [] };
         }
 
@@ -1402,80 +1425,33 @@
           body: JSON.stringify({ message: msg, state })
         });
 
-        if (!r.ok) throw new Error("chat failed");
-
-        const res = await r.json();
-
-        function actionLabel(action) {
-          const map = {
-            chat: "会話のみ（操作しない）",
-            generate: "生成（ポリゴン作成）",
-            fly: "移動（カメラ移動）",
-            undo: "戻す（直前の操作を取り消し）",
-            clear: "クリア（全削除）",
-            rotate: "回転（カメラ回転）",
-            modify: "変更（既存ポリゴンの調整）",
-            "open-model-picker": "モデル選択を開く",
-          };
-          return map[action] ?? action;
+        // 失敗でもJSONが返る前提だが、念のため保険
+        let res;
+        const text = await r.text();
+        try {
+          res = JSON.parse(text);
+        } catch {
+          res = { reply: "サーバ応答の解析に失敗しました。", action: "chat" };
         }
 
-        async function confirmAndRun(action, runner, extraText = "") {
-          // chat は何もしないので確認不要
-          if (action === "chat" || !action) return;
+        // HTTPエラーなら、replyがあっても「エラー」として扱う
+        if (!r.ok) {
+          console.error("chat error", r.status, res);
+          appendChat("ai", res?.reply || "エラーが発生しました（chat）。");
+          return;
+        }
 
-          const msg = `AIが次の操作を実行しようとしています。\n\n【操作】${actionLabel(action)}\n${extraText}\n\n実行しますか？`;
-          const ok = window.confirm(msg);
-          if (!ok) {
-            appendChat("ai", "了解。操作は実行しません（会話だけ続けられます）。");
-            return;
+        // まず回答を表示（1回だけ）
+        if (res.reply) appendChat("ai", res.reply);
+
+        // 操作提案がある場合は確認へ
+        if (res.action && res.action !== "chat") {
+          if (res.needs_confirm) {
+            pendingAction = res;
+            renderConfirmInChat(res.confirm_text || "この操作を実行しますか？");
+          } else {
+            await runProposedAction(res);
           }
-          await runner();
-        }
-
-        // ① チャット表示（1回だけ）
-        appendChat("ai", res.reply);
-
-        switch (res.action) {
-          case "chat":
-            // 返答表示だけで終わり
-            break;
-          case "generate":
-            $("prompt").value = res.prompt ?? msg;   // ★ここ超重要
-            await confirmAndRun("generate", () => generateFromText(), `prompt: ${$("prompt").value}`);
-            break;
-
-          case "fly":
-            $("prompt").value = res.prompt ?? msg;   // ★ここ超重要
-            await confirmAndRun("fly", () => flyToInputPlace(), `prompt: ${$("prompt").value}`);
-            break;
-
-          case "undo":
-            await confirmAndRun("undo", () => undoLast());
-            break;
-
-          case "clear":
-            await confirmAndRun("clear", () => clearAll());
-            break;
-
-          case "rotate":
-            await confirmAndRun("rotate", () => rotateCameraOnce());
-            break;
-
-          case "open-model-picker":
-            await confirmAndRun("open-model-picker", () => $("modelFileInput").click());
-            break;
-
-          case "modify":
-            await confirmAndRun("modify", async () => {
-              if (res.state) {
-                const full = JSON.parse($("apiRequest").value || "{}");
-                full.polygons = res.state.polygons ?? full.polygons ?? [];
-                $("apiRequest").value = JSON.stringify(full, null, 2);
-                exportIndividual();
-              }
-            });
-            break;
         }
       } catch (e) {
         console.error(e);
@@ -1490,6 +1466,95 @@
       div.textContent = (role === "user" ? "👤 " : "🤖 ") + text;
       log.appendChild(div);
       log.scrollTop = log.scrollHeight;
+    }
+
+    function renderConfirmInChat(confirmText) {
+      appendChat("ai", confirmText || "この操作を実行しますか？");
+
+      const row = document.createElement("div");
+      row.className = "confirmRow";
+      row.style.display = "flex";
+      row.style.gap = "8px";
+      row.style.margin = "8px 0 12px";
+
+      const ok = document.createElement("button");
+      ok.textContent = "実行";
+      ok.className = "btn"; // 既存に合わせる
+      ok.onclick = async () => {
+        const a = pendingAction;
+        pendingAction = null;
+        row.remove();
+        await runProposedAction(a);
+      };
+
+      const cancel = document.createElement("button");
+      cancel.textContent = "キャンセル";
+      cancel.className = "btn";
+      cancel.onclick = () => {
+        pendingAction = null;
+        row.remove();
+        appendChat("ai", "了解しました。今回は実行しません。必要なら「生成して」「移動して」など具体的に指示してください。");
+      };
+
+      row.appendChild(ok);
+      row.appendChild(cancel);
+
+      const chatBox = document.getElementById("chatMessages") || document.getElementById("chatLog");
+      (chatBox || document.body).appendChild(row);
+
+      // 最下部へ
+      const scroller = chatBox || document.documentElement;
+      scroller.scrollTop = scroller.scrollHeight;
+    }
+
+    async function runProposedAction(res) {
+      if (!res || !res.action) return;
+
+      switch (res.action) {
+        case "generate":
+          if (res.prompt) document.getElementById("prompt").value = res.prompt;
+          await generateFromText();
+          appendChat("ai", "生成しました。必要なら「もう少し北側に」「高さを抑えて」など調整指示をください。");
+          break;
+
+        case "fly":
+          if (res.prompt) document.getElementById("prompt").value = res.prompt;
+          await flyToInputPlace();
+          appendChat("ai", "移動しました。周辺の見え方（軸線・視界）も確認しましょう。");
+          break;
+
+        case "undo":
+          undoLast();
+          appendChat("ai", "直前の操作を戻しました。");
+          break;
+
+        case "clear":
+          clearAll();
+          appendChat("ai", "クリアしました。必要なら用途・規模感から整理して作り直しましょう。");
+          break;
+
+        case "rotate":
+          rotateCameraOnce();
+          appendChat("ai", "回転しました。正面性（ファサードの見え方）を確認できます。");
+          break;
+
+        case "modify":
+          if (res.state) {
+            const full = JSON.parse(document.getElementById("apiRequest").value || "{}");
+            full.polygons = res.state.polygons ?? full.polygons ?? [];
+            document.getElementById("apiRequest").value = JSON.stringify(full, null, 2);
+            exportIndividual();
+            appendChat("ai", "変更しました。外構や隣地との離隔も意識すると精度が上がります。");
+          } else {
+            appendChat("ai", "変更案が受け取れませんでした。どの要素をどう変えたいか教えてください。");
+          }
+          break;
+
+        case "chat":
+        default:
+          // 何もしない
+          break;
+      }
     }
 
     function pickPartColor(archetype, part) {
