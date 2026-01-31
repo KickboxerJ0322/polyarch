@@ -113,9 +113,10 @@
     .brandLogo{
       width: 40px;
       height: 40px;
-      border-radius: 10px;
+      border-radius: 0;
       object-fit: cover;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      box-shadow: none;
+      border: none;
     }
     .brandTitle{
       font-size: 22px;
@@ -136,13 +137,14 @@
       display: none !important;
     }
     #modelSelect{
-      height: 38px;          /* buttonと揃える */
-      padding: 0 10px;
+      height: 50px;          /* buttonと揃える */
+      padding: 0px 12px;
       border-radius: 10px;
       border: 1px solid #d1d5db;
       background: #fff;
       font-size: 14px;
-      line-height: 38px;
+      line-height: 50px;
+      box-sizing: border-box;
     }
     gmp-map-3d { width: 100%; height: 100%; display: block; }
   </style>
@@ -179,7 +181,7 @@
           <select id="modelSelect" style="flex:1; padding:10px; border-radius:10px; border:1px solid #ccc;">
             <option value="">（manifest読込中…）</option>
           </select> -->
-          <button id="btnPlaceModel">配置</button>
+        <button id="btnPlaceModel">配置</button>
         </div>
 
         <!-- <div class="hint" style="margin-top:6px;">

@@ -2,11 +2,32 @@
   "version": 1,
   "models": [
     {
+      "id": "modern_house",
+      "label": "モダン住宅",
+      "file": "modern_house.gltf",
+      "scale": 0.2,
+      "tags": ["住宅", "戸建て", "モダン"]
+    },
+    {
+      "id": "japanese_house",
+      "label": "日本家屋",
+      "file": "japanese_house.gltf",
+      "scale": 0.2,
+      "tags": ["日本家屋", "和風", "家屋"]
+    },
+    {
+      "id": "modern_3story_house",
+      "label": "3階建て住宅",
+      "file": "modern_3story_house.gltf",
+      "scale": 0.2,
+      "tags": ["3階建て住宅", "3階建て"]
+    },
+    {
       "id": "apartment",
       "label": "アパート",
       "file": "apartment.gltf",
       "scale": 0.2,
-      "tags": ["アパート", "集合住宅", "住宅"]
+      "tags": ["アパート", "集合住宅"]
     },
     {
       "id": "mid_size_apartment",
@@ -20,29 +41,15 @@
       "label": "高層レジデンス",
       "file": "high_rise_residence.gltf",
       "scale": 0.2,
-      "tags": ["高層", "住宅", "タワー"]
+      "tags": ["高層", "レジデンス"]
     },
     {
-      "id": "modern_house",
-      "label": "モダン住宅",
-      "file": "modern_house.gltf",
+      "id": "grand_urban_tower",
+      "label": "都市型高層タワー",
+      "file": "grand_urban_tower_50f.gltf",
       "scale": 0.2,
-      "tags": ["住宅", "戸建て", "モダン"]
-    },
-    {
-      "id": "modern_3story_house",
-      "label": "3階建て住宅",
-      "file": "modern_3story_house.gltf",
-      "scale": 0.2,
-      "tags": ["住宅", "3階建て", "戸建て"]
-    },
-    {
-      "id": "japanese_house",
-      "label": "日本家屋",
-      "file": "japanese_house.gltf",
-      "scale": 0.2,
-      "tags": ["日本家屋", "和風", "住宅"]
-    },
+      "tags": ["タワー", "高層", "都市"]
+    },   
     {
       "id": "general_hospital",
       "label": "病院",
@@ -58,40 +65,88 @@
       "tags": ["モール", "商業施設", "ショッピング"]
     },
     {
-      "id": "grand_mall_model",
-      "label": "大型モール（詳細）",
-      "file": "grand_mall_model.glb",
-      "scale": 0.2,
-      "tilt": 90,
-      "tags": ["モール", "商業施設", "詳細"]
-    },
-    {
-      "id": "grand_urban_tower",
-      "label": "都市型高層タワー",
-      "file": "grand_urban_tower_50f.gltf",
-      "scale": 0.2,
-      "tags": ["タワー", "高層", "都市"]
-    },
-    {
       "id": "detailed_colosseum",
       "label": "コロッセオ",
       "file": "detailed_colosseum.gltf",
       "scale": 0.2,
-      "tags": ["遺跡", "世界遺産", "闘技場"]
+      "tags": ["コロッセオ", "世界遺産", "闘技場"]
     },
     {
       "id": "sky_palace",
       "label": "天空の宮殿",
       "file": "sky_palace.gltf",
       "scale": 0.2,
-      "tags": ["宮殿", "ファンタジー", "空"]
+      "tags": ["天空の宮殿", "ファンタジー", "空"]
     },
     {
       "id": "wizard_tower",
       "label": "魔法使いの塔",
       "file": "wizard_tower.gltf",
       "scale": 0.2,
-      "tags": ["塔", "魔法", "ファンタジー"]
+      "tags": ["魔法使いの塔", "魔法"]
+    },
+    {
+      "id": "phinx_realish",
+      "label": "スフィンクス",
+      "file": "sphinx_realish.gltf",
+      "scale": 0.2,
+      "tags": ["スフィンクス"]
+    },
+    {
+      "id": "anime_colossal_100m_face_front",
+      "label": "超大型巨人",
+      "file": "anime_colossal_100m_face_front.gltf",
+      "scale": 0.2,
+      "tags": ["超大型巨人"]
+    },
+    {
+      "id": "launch_pad_base",
+      "label": "ロケット発射基地",
+      "file": "launch_pad_base.gltf",
+      "scale": 0.2,
+      "tags": ["ロケット発射基地"]
+    },
+    {
+      "id": "mega_sky_airship_mobile_safe",
+      "label": "飛行船",
+      "file": "mega_sky_airship_mobile_safe.gltf",
+      "scale": 0.2,
+      "tags": ["飛行船"]
+    },
+    {
+      "id": "triumphal_arch",
+      "label": "凱旋門",
+      "file": "triumphal_arch.gltf",
+      "scale": 0.2,
+      "tags": ["凱旋門"]
+    },
+    {
+      "id": "parthenon_temple",
+      "label": "パルテノン神殿",
+      "file": "parthenon_temple.gltf",
+      "scale": 0.2,
+      "tags": ["パルテノン神殿"]
+    },
+    {
+      "id": "tower_of_babel_5000m",
+      "label": "バベルの塔",
+      "file": "tower_of_babel_5000m.gltf",
+      "scale": 0.2,
+      "tags": ["バベルの塔"]
+    },
+    {
+      "id": "yggdrasil_nordic",
+      "label": "世界樹",
+      "file": "yggdrasil_nordic.gltf",
+      "scale": 0.2,
+      "tags": ["世界樹"]
+    },
+    {
+      "id": "olmec_head_face_detail",
+      "label": "オルメカ人頭像",
+      "file": "olmec_head_face_detail.gltf",
+      "scale": 0.2,
+      "tags": ["オルメカ人頭像"]
     }
   ]
 }
