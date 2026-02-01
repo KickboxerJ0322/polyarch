@@ -161,6 +161,39 @@
       padding: 0 12px;
     }
     gmp-map-3d { width: 100%; height: 100%; display: block; }
+    .mapContainer {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    #mapCenterMarker {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 24px;
+      height: 24px;
+      transform: translate(-50%, -50%);
+      pointer-events: none; /* マップ操作を邪魔しない */
+      z-index: 999;
+    }
+    #mapCenterMarker::before,
+    #mapCenterMarker::after {
+      content: "";
+      position: absolute;
+      background: rgba(255, 0, 0, 0.85);
+    }
+    #mapCenterMarker::before {
+      width: 24px;
+      height: 2px;
+      top: 11px;
+      left: 0;
+    }
+    #mapCenterMarker::after {
+      width: 2px;
+      height: 24px;
+      top: 0;
+      left: 11px;
+    }
   </style>
 
   <!-- Maps JS API (v=beta) + maps3d -->
@@ -231,6 +264,7 @@
       <div class="row" style="margin-top:8px;">
         <button id="btnExport">JSON出力</button>
         <button id="btnIndividual">個別出力</button>
+        <button id="btnToggleCenter">中心点 OFF</button>
       </div>
 
       <textarea id="json" class="mono" placeholder="生成のログ(JSON)"></textarea>
@@ -257,9 +291,12 @@
       </div>
       </div>        
     </aside>
-    <main class="mapWrap">
+   <main class="mapWrap">
+    <div class="mapContainer">
       <gmp-map-3d id="map3d" mode="hybrid"></gmp-map-3d>
-    </main>
+      <div id="mapCenterMarker"></div>
+    </div>
+  </main>
   </div>
   <input
     type="file"
@@ -293,6 +330,21 @@
       body: "#F5CBA7",        // 人・生物
       eye: "#E74C3C"          // 目・コア
     };
+
+    let centerVisible = true;
+
+    const centerMarker = document.getElementById("mapCenterMarker");
+    const btnToggleCenter = document.getElementById("btnToggleCenter");
+
+    // 念のため明示（CSSで表示されていればなくてもOK）
+    centerMarker.style.display = "block";
+
+    btnToggleCenter.addEventListener("click", () => {
+      centerVisible = !centerVisible;
+
+      centerMarker.style.display = centerVisible ? "block" : "none";
+      btnToggleCenter.textContent = centerVisible ? "中心点 OFF" : "中心点 ON";
+    });
 
     function setStatus(s) {
       const el = $("status");
