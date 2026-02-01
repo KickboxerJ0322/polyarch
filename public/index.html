@@ -37,7 +37,7 @@
 
     @media (max-width: 900px) { .panel { border-right: none; border-bottom: 1px solid #ddd; } }
 
-    .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; min-width: 0; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0; min-width: 0; }
     button {
       padding: 9px 12px;
       border-radius: 10px;
@@ -138,13 +138,27 @@
     }
     #modelSelect{
       height: 50px;          /* buttonと揃える */
-      padding: 0px 12px;
+      padding: 0px 0px;
       border-radius: 10px;
       border: 1px solid #d1d5db;
       background: #fff;
       font-size: 14px;
       line-height: 50px;
       box-sizing: border-box;
+    }
+    .modelRow { align-items: stretch; } /* 重要：同じ高さに伸ばす */
+    .modelRow #modelSelect,
+    .modelRow #btnPlaceModel {
+      height: 38px;
+    }
+    /* button は padding で高さが変わるので、縦paddingを0にする */
+    .modelRow #btnPlaceModel {
+      padding: 0 12px;
+    }
+    /* select は line-height を消した方が安定 */
+    .modelRow #modelSelect{
+      line-height: normal;
+      padding: 0 12px;
     }
     gmp-map-3d { width: 100%; height: 100%; display: block; }
   </style>
@@ -175,15 +189,16 @@
       </div>
       <div class="row">
         <button hidden id="btnModel">モデル</button>
-        <select id="modelSelect"></select>
+        <div class="row modelRow">
+          <select id="modelSelect"></select>
+          <button id="btnPlaceModel">配置</button>
+        </div>
         <div class="row" style="align-items:center;">
           <!-- <label class="mono" for="modelSelect" style="min-width:72px;">Model</label>
           <select id="modelSelect" style="flex:1; padding:10px; border-radius:10px; border:1px solid #ccc;">
             <option value="">（manifest読込中…）</option>
           </select> -->
-        <button id="btnPlaceModel">配置</button>
         </div>
-
         <!-- <div class="hint" style="margin-top:6px;">
           モデルを選択→「配置」で、prompt の場所（なければ現在地）に置きます。
         </div> -->
