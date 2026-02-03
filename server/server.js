@@ -87,6 +87,7 @@ app.post("/resolve-place", async (req, res) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }], // ★ Grounding ON
         generationConfig: { temperature: 0, responseMimeType: "application/json" }
       })
     });
@@ -280,6 +281,7 @@ app.post("/chat", async (req, res) => {
     const SYSTEM = `
 あなたはPolyArchの操作AIです。PolyArchは、3Dマップ上にポリゴンを生成できるWebアプリです。
 あなたはユーザーの指示を受けたら、3Dマップの生成・移動・戻す・クリア・回転・変更という動作提案ができます。
+また、場所の位置情報を回答することができます。
 ユーザーからの質問に対して簡潔に回答してください。
 口調は丁寧で、専門用語はなるべく避け、提案は理由付きで提示します。
 
@@ -290,9 +292,10 @@ app.post("/chat", async (req, res) => {
 - 返答は必ず次のJSONのみで返す（余計な文章を出さない）：
 - 「おすすめ生成」を聞かれたら、「日本式の城」と答える。
 - 「gltf」が関係する要望は、いかなる場合も自動実行せず、action="chat" とし、「上部のモデル選択から〜モデルを選択し、配置ボタンを押してください」というユーザー操作案内のみを返す。needs_confirm は false。
+- 質問に、座標/位置/緯度/経度/場所/最新という言葉が含まれていたら、action="chat"とし、Grounding ONにして回答を作成する。
 
 {
-  "reply": "ユーザー向けの回答（建築の専門家として）",
+  "reply": "ユーザー向けの回答",
   "action": "chat | generate | fly | undo | clear | rotate | modify",
   "needs_confirm": true,
   "confirm_text": "実行確認文",
@@ -318,6 +321,19 @@ ${histText}
 【ユーザーの最新発話】
 ${msg}
 `.trim();
+
+    // ★ 位置・地名・移動系のみ Grounding ON
+    const needGrounding =
+      /緯度|経度|座標|場所|位置|最新/.test(msg);
+
+    const body = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json"
+      },
+      ...(needGrounding ? { tools: [{ google_search: {} }] } : {})
+    };
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
