@@ -78,6 +78,11 @@ app.post("/resolve-place", async (req, res) => {
 
 出力形式:
 {"lat": number, "lng": number}
+
+出力形式は必ず次のキー名のみ：
+{"lat": 35.0, "lng": 139.0}
+lat/lng 以外のキーは禁止
+
 `.trim();
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -101,14 +106,24 @@ app.post("/resolve-place", async (req, res) => {
     const text = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
     // 返答からJSONだけ抜き出す（保険）
-    const m = text.match(/\{[\s\S]*?\}/); // ★ 非貪欲にする
-    if (!m) return res.status(500).json({ error: "no json in response", raw: text });
+    const candidates = text.match(/\{[\s\S]*?\}/g) ?? [];
+    let obj = null;
 
-    let obj;
-    try {
-      obj = JSON.parse(m[0]);
-    } catch (e) {
-      return res.status(500).json({ error: "json parse failed", raw: m[0] });
+    for (const c of candidates) {
+      try {
+        const o = JSON.parse(c);
+        if (o && typeof o === "object" && ("lat" in o) && ("lng" in o)) {
+          obj = o;
+          break;
+        }
+      } catch (_) {}
+    }
+
+    if (!obj) {
+      return res.status(500).json({
+        error: "no lat/lng json in response",
+        raw: text
+      });
     }
 
     const lat = Number(obj.lat);
@@ -340,13 +355,7 @@ ${msg}
     const r = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json"
-        }
-      })
+      body: JSON.stringify(body) // ★ ここが本命
     });
 
     if (!r.ok) {
