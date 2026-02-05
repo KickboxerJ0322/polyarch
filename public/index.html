@@ -250,7 +250,7 @@
 
         <div class="row" style="margin-top:6px;">
           <input id="chatInput"
-                placeholder="例：大阪城へ移動して"
+                placeholder="例：東京駅へ移動して"
                 style="flex:1; padding:8px; border-radius:8px; border:1px solid #ccc;">
           <button id="btnChat">送信</button>
         </div>
@@ -371,6 +371,23 @@
     function detectPlace(text) {
       for (const p of PLACE_DB) if (p.key.test(text)) return p;
       return null;
+    }
+
+    // =========================
+    // 1.5) 緯度経度をテキストから抽出
+    // 例: "35.68, 139.76", "35.68 139.76", "35.68,139.76 タワーを建てる"
+    // =========================
+    function parseLatLngFromText(text) {
+      const m = String(text ?? "").match(/(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)/);
+      if (!m) return null;
+      const lat = Number(m[1]);
+      const lng = Number(m[2]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+
+      // 座標以外の部分は名前として残す（空なら座標文字列）
+      const name = String(text ?? "").replace(m[0], "").trim() || `${lat}, ${lng}`;
+      return { name, lat, lng, heading: 30, tilt: 65, range: 1500 };
     }
 
     // =========================
@@ -1209,6 +1226,10 @@
     // 11) 場所解決（辞書→AI）
     // =========================
     async function resolvePlaceAgent(placeText) {
+      // ★ まず座標（lat,lng）を優先で解決
+      const ll = parseLatLngFromText(placeText);
+      if (ll) return ll;
+
       const known = detectPlace(placeText);
       if (known) return known;
 
@@ -1765,6 +1786,11 @@
 
     function getPlaceFromPromptOrCenter() {
       const t = $("prompt")?.value?.trim() ?? "";
+
+      // ★ 座標（lat,lng）が入っていたら、その場所を優先
+      const ll = parseLatLngFromText(t);
+      if (ll) return ll;
+
       const p = detectPlace(t);
       if (p) return p;
       return { lat: map3d.center.lat, lng: map3d.center.lng, name: "center" };

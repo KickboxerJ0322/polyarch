@@ -66,6 +66,17 @@ app.post("/resolve-place", async (req, res) => {
     const place = String(req.body?.place ?? "").trim();
     if (!place) return res.status(400).json({ error: "place is required" });
 
+    // ★ 先に "lat,lng" を検出したら、そのまま返す（地名解決に回さない）
+    // 例: "35.648..., 139.770... タワーを建てる"
+    const m = place.match(/(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)/);
+    if (m) {
+      const lat = Number(m[1]);
+      const lng = Number(m[2]);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return res.json({ lat, lng });
+      }
+    }
+
     const prompt = `
 次の地名について、緯度(lat)・経度(lng)を返してください。
 
