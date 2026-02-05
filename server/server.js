@@ -203,9 +203,7 @@ app.post("/interpret-polygon", async (req, res) => {
   - "半透明" があれば 0.35
   - 無ければ 0.4
 - color:
-  - 危険/警告/立入禁止 → "#ff0000"
-  - 注意 → "#ffaa00"
-  - 安全/避難 → "#00aa55"
+  - 色：青、color：緑、などで指定があれば、その色にする
   - 無指定 → "#ff0000"
 
 【区分け（超重要）】
@@ -215,7 +213,6 @@ app.post("/interpret-polygon", async (req, res) => {
 - grid.rows と grid.cols を必ず設定し、zones は全セルぶん返してよい（推奨）。
 - 例：2×3 → rows=2, cols=3
 - zones は {row, col} を0始まりで埋める。
-- 危険→注意→安全の段階があれば、色とopacityで差を付ける（危険ほど濃く）。
 
 【入力文】
 ${text}
