@@ -93,7 +93,9 @@ lat/lng 以外のキーは禁止
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         tools: [{ google_search: {} }], // ★ Grounding ON
-        generationConfig: { temperature: 0, responseMimeType: "application/json" }
+        generationConfig: { temperature: 0, 
+        // responseMimeType: "application/json" 
+        }
       })
     });
 
@@ -148,6 +150,12 @@ app.post("/interpret-polygon", async (req, res) => {
 あなたは3Dマップに描画する「ポリゴン仕様」を作るAIです。
 出力は **必ずJSONのみ**。説明文、コードブロック、前置き、コメントは禁止。
 
+【最重要：デフォルトサイズ固定】
+- ユーザー入力にサイズ指定（例: 10m, 30m, 100m, 1km, 半径500m 等）が無い場合でも、
+  **必ず 30m × 30m 相当の小さい四角形**になるように数値を入れること。
+- そのため、**radius と meters はデフォルトで必ず 30 を返す**こと。
+- **radius/meters を 0 にすることは禁止**（クライアント補完で大きくなるため）。
+
 【厳守ルール】
 - 出力は JSON 1個のみ（配列ではなくオブジェクト）
 - JSON内にコメント禁止（// や /* */ を入れない）
@@ -157,17 +165,17 @@ app.post("/interpret-polygon", async (req, res) => {
 
 【出力JSONの形式（このキーのみを使う）】
 {
-  "shape": "circle",
-  "sides": 6,
-  "size": "medium",
-  "radius": 260,
-  "meters": 260,
-  "height": 60,
+  "shape": "rect",
+  "sides": 4,
+  "size": "small",
+  "radius": 30,
+  "meters": 30,
+  "height": 100,
   "color": "#ff0000",
   "opacity": 0.4,
   "grid": { "rows": 1, "cols": 1 },
   "zones": [
-    { "row": 0, "col": 0, "color": "#ff0000", "opacity": 0.4, "height": 60 }
+    { "row": 0, "col": 0, "color": "#ff0000", "opacity": 0.4, "height": 100 }
   ]
 }
 
@@ -175,15 +183,18 @@ app.post("/interpret-polygon", async (req, res) => {
 - shape:
   - "五角形/六角形/八角形/多角形" があれば "ngon" にする
   - ngonの sides: 五角形=5, 六角形=6, 多角形=8（迷ったら8）
+  - 指定が無ければ "rect"（四角形）にする
 - size:
+  - 指定が無ければ必ず "small"
   - "小さめ/小さい" → "small"
   - "広め/大きめ/広い" → "large"
   - それ以外 → "medium"
 - radius/meters（単位m）:
   - 文中に "1km" があれば 1000
   - 文中に "500m" があれば 500
-  - "半径500m" があれば radius=500
-  - 指定が無ければ radius/meters は 0 にしてOK（クライアント側がsizeで補完するため）
+  - "半径500m" があれば radius=500, meters=500
+  - "30m" があれば radius=30, meters=30（優先）
+  - 指定が無ければ **radius=30, meters=30（固定）**
 - height:
   - "高さ120" や "高さ120m" があれば 120
   - 無ければ 60
@@ -200,6 +211,7 @@ app.post("/interpret-polygon", async (req, res) => {
 【区分け（超重要）】
 - 入力文に「区分け」「細かく」「グリッド」「段階」「2×3」「3x2」「3段階」などが含まれる場合、
   必ず grid と zones を返すこと。
+- ただし、区分けがあっても **各セルのサイズ感は小さめ（基準は 30m）** を維持すること。
 - grid.rows と grid.cols を必ず設定し、zones は全セルぶん返してよい（推奨）。
 - 例：2×3 → rows=2, cols=3
 - zones は {row, col} を0始まりで埋める。
@@ -279,7 +291,7 @@ app.post("/chat", async (req, res) => {
     if (msg.includes("会話履歴削除")) {
       chatStore.delete(sid);
       return res.json({
-        reply: "承知しました。会話履歴を削除しました。引き続き、建築・都市・配置計画の相談に対応します。",
+        reply: "承知しました。会話履歴を削除しました。",
         action: "chat",
         needs_confirm: false,
         confirm_text: "",
@@ -304,19 +316,27 @@ app.post("/chat", async (req, res) => {
 - 雑談・質問・相談など「操作指示が明確でない」場合は action="chat" にする（実行提案しない）。
 - 生成（建築・作って・建てて・置いて、等を含む）/移動/戻す/クリア/回転/変更の操作は、ユーザーの意図が明確な時のみ提案する。
 - 操作を提案する場合でも、勝手に実行させないため needs_confirm=true を返し、confirm_text に「何をするか」を短く書く。
-- 返答は必ず次のJSONのみで返す（余計な文章を出さない）：
-- 「おすすめ生成」を聞かれたら、「日本式の城」と答える。
-- 「gltf」が関係する要望は、いかなる場合も自動実行せず、action="chat" とし、「上部のモデル選択から〜モデルを選択し、配置ボタンを押してください」というユーザー操作案内のみを返す。needs_confirm は false。
-- 質問に、座標/位置/緯度/経度/場所/最新という言葉が含まれていたら、action="chat"とし、Grounding ONにして回答を作成する。
+- **Google検索（Grounding）を使用した場合でも、「お調べします」などの経過報告は一切禁止。検索結果を反映した最終的なJSONのみを出力すること。**
+
+【出力JSONフォーマット】
+必ず以下のキーを持つJSONのみを返してください。
+緯度経度の質問が来た場合のみ、lat/lng に数値を入れてください（それ以外は null）。
 
 {
-  "reply": "ユーザー向けの回答",
+  "reply": "ユーザー向けの回答（検索結果の要約など）",
   "action": "chat | generate | fly | undo | clear | rotate | modify",
   "needs_confirm": true,
   "confirm_text": "実行確認文",
   "prompt": "generate/fly用（不要なら空文字）",
-  "state": { "polygons": [] } または null
+  "state": { "polygons": [] } または null,
+  "lat": 35.1234, 
+  "lng": 139.5678
 }
+
+具体的な指示：
+- 「おすすめ生成」を聞かれたら、「日本式の城」と答える。
+- 「gltf」関係は action="chat" で案内のみ。
+- **座標/位置/緯度/経度/最新** について聞かれたら、action="chat" でGoogle検索を使用して正しい座標を調べ、**lat, lng フィールドに数値を入れ**、replyにはその場所の説明を簡潔に入れてください。この時 action="fly" を推奨しますが "chat" でも構いません。
 `.trim();
 
     // Geminiに渡すテキストを組み立て（履歴20件まで）
@@ -338,14 +358,13 @@ ${msg}
 `.trim();
 
     // ★ 位置・地名・移動系のみ Grounding ON
-    const needGrounding =
-      /緯度|経度|座標|場所|位置|最新/.test(msg);
-
+    const needGrounding = /(緯度|経度|座標|場所|位置|最新|移動|飛んで|行って|向かって|へ)/.test(msg);
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.2,
-        responseMimeType: "application/json"
+        // ★ GroundingがONの時は JSON Mode をOFFにする（undefinedにする）
+        responseMimeType: needGrounding ? undefined : "application/json"
       },
       ...(needGrounding ? { tools: [{ google_search: {} }] } : {})
     };
@@ -387,7 +406,9 @@ ${msg}
       needs_confirm: obj.needs_confirm !== false, // 基本true（会話のみならfalseでもOK）
       confirm_text: String(obj.confirm_text ?? "").trim(),
       prompt: String(obj.prompt ?? "").trim(),
-      state: obj.state ?? null
+      state: obj.state ?? null,
+      lat: typeof obj.lat === 'number' ? obj.lat : null,
+      lng: typeof obj.lng === 'number' ? obj.lng : null
     };
 
     // 雑談なら action=chat を強制（暴走抑制）
