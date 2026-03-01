@@ -152,28 +152,28 @@
       "id": "jotaro",
       "label": "承太郎",
       "file": "jotaro.gltf",
-      "scale": 0.2,
+      "scale": 0.02,
       "tags": ["承太郎"]
     },
     {
       "id": "joseph",
       "label": "ジョセフ",
       "file": "joseph.gltf",
-      "scale": 0.2,
+      "scale": 0.02,
       "tags": ["ジョセフ"]
     },
     {
       "id": "suit_woman",
       "label": "スーツ姿の女性",
       "file": "suit_woman.gltf",
-      "scale": 0.2,
+      "scale": 0.02,
       "tags": ["スーツ姿の女性"]
     },
     {
       "id": "chainsaw",
       "label": "チェンソー",
       "file": "chainsaw.gltf",
-      "scale": 0.2,
+      "scale": 0.02,
       "tags": ["チェンソー"]
     }
   ]
