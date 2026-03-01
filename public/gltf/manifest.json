@@ -96,7 +96,7 @@
       "id": "anime_colossal_100m_face_front",
       "label": "超大型巨人",
       "file": "anime_colossal_100m_face_front.gltf",
-      "scale": 0.2,
+      "scale": 0.4,
       "tags": ["超大型巨人"]
     },
     {
@@ -147,6 +147,34 @@
       "file": "olmec_head_face_detail.gltf",
       "scale": 0.2,
       "tags": ["オルメカ人頭像"]
+    },
+    {
+      "id": "jotaro",
+      "label": "承太郎",
+      "file": "jotaro.gltf",
+      "scale": 0.2,
+      "tags": ["承太郎"]
+    },
+    {
+      "id": "joseph",
+      "label": "ジョセフ",
+      "file": "joseph.gltf",
+      "scale": 0.2,
+      "tags": ["ジョセフ"]
+    },
+    {
+      "id": "suit_woman",
+      "label": "スーツ姿の女性",
+      "file": "suit_woman.gltf",
+      "scale": 0.2,
+      "tags": ["スーツ姿の女性"]
+    },
+    {
+      "id": "chainsaw",
+      "label": "チェンソー",
+      "file": "chainsaw.gltf",
+      "scale": 0.2,
+      "tags": ["チェンソー"]
     }
   ]
 }
